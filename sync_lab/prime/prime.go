@@ -1,0 +1,62 @@
+package prime
+
+type Prime = int
+
+const MinPrime Prime = 2
+
+type Service struct {
+	calcNum int
+	primes  []Prime
+}
+
+func CreateService(calcNum int) *Service {
+	return &Service{calcNum: calcNum, primes: []Prime{MinPrime, 3}}
+}
+
+func (svc *Service) IsPrime(number int) bool {
+	last := svc.primes[len(svc.primes)-1]
+	if number >= svc.primes[0] && number <= last {
+		for _, prime := range svc.primes {
+			if number == prime {
+				return true
+			}
+		}
+	} else if number > last {
+		for i := last + 2; i <= number; i += 2 {
+			if svc.appendIfPrime(i) && i == number {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (svc *Service) appendIfPrime(number int) bool {
+	for _, prime := range svc.primes {
+		if number < prime*prime {
+			break
+		}
+		if number%prime == 0 {
+			return false
+		}
+	}
+	svc.primes = append(svc.primes, number)
+	return true
+}
+
+func (svc *Service) GetPrimes(a, b int) []Prime {
+	var primes []Prime
+
+	if a == MinPrime {
+		primes = append(primes, MinPrime)
+	}
+	if a%2 == 0 {
+		a++
+	}
+	for i := a; i <= b; i += 2 {
+		if svc.IsPrime(i) {
+			primes = append(primes, i)
+		}
+	}
+	return primes
+}
