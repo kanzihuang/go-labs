@@ -10,25 +10,51 @@ type Service struct {
 }
 
 func CreateService(calcNum int) *Service {
-	return &Service{calcNum: calcNum, primes: []Prime{MinPrime, 3}}
+	return &Service{
+		calcNum: calcNum,
+		primes:  []Prime{MinPrime, 3},
+	}
 }
 
 func (svc *Service) IsPrime(number int) bool {
-	last := svc.primes[len(svc.primes)-1]
-	if number >= svc.primes[0] && number <= last {
-		for _, prime := range svc.primes {
-			if number == prime {
-				return true
-			}
+	svc.appendPrimes(number)
+	return svc.findPrime(number) >= 0
+}
+
+func (svc *Service) findPrime(number int) int {
+	if number == MinPrime {
+		return 0
+	} else if number%2 == 0 {
+		return -1
+	}
+	firstIndex, lastIndex := 0, len(svc.primes)-1
+	for {
+		if number < svc.primes[firstIndex] || number > svc.primes[lastIndex] {
+			return -1
 		}
-	} else if number > last {
-		for i := last + 2; i <= number; i += 2 {
-			if svc.appendIfPrime(i) && i == number {
-				return true
-			}
+		middleIndex := (firstIndex + lastIndex) / 2
+		middle := svc.primes[middleIndex]
+		if number == middle {
+			return middleIndex
+		} else if number < middle {
+			lastIndex = middleIndex
+		} else if middleIndex > firstIndex {
+			firstIndex = middleIndex
+		} else {
+			firstIndex = middleIndex + 1
 		}
 	}
-	return false
+}
+
+func (svc *Service) appendPrimes(number int) {
+	last := svc.primes[len(svc.primes)-1]
+	if number <= last {
+		return
+	} else if number > last {
+		for i := last + 2; i <= number; i += 2 {
+			svc.appendIfPrime(i)
+		}
+	}
 }
 
 func (svc *Service) appendIfPrime(number int) bool {
