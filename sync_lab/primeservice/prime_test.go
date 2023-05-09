@@ -1,4 +1,4 @@
-package prime
+package primeservice
 
 import (
 	"reflect"
@@ -6,6 +6,7 @@ import (
 )
 
 func TestService_IsPrime(t *testing.T) {
+	svc := CreateService(1)
 	tests := []struct {
 		name   string
 		number int
@@ -14,8 +15,8 @@ func TestService_IsPrime(t *testing.T) {
 		{name: "prime", number: 2, want: true},
 		{name: "prime", number: 3, want: true},
 		{name: "prime", number: 5, want: true},
-		{name: "prime", number: 7, want: true},
 		{name: "prime", number: 25, want: false},
+		{name: "prime", number: 13, want: true},
 		{name: "not prime", number: -1, want: false},
 		{name: "not prime", number: 0, want: false},
 		{name: "not prime", number: 1, want: false},
@@ -23,9 +24,8 @@ func TestService_IsPrime(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			se := CreateService(0)
-			if got := se.IsPrime(tt.number); got != tt.want {
-				t.Errorf("IsPrime(%v) = %v, want %v", tt.number, got, tt.want)
+			if got := svc.IsPrime(tt.number); got != tt.want {
+				t.Errorf("PrimeYes(%v) = %v, want %v", tt.number, got, tt.want)
 			}
 		})
 	}
@@ -47,7 +47,7 @@ func TestService_GetPrimes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			se := CreateService(0)
+			se := CreateService(1)
 			got := se.GetPrimes(tt.left, tt.right)
 			if reflect.DeepEqual(got, tt.want) == false {
 				t.Errorf("GetPrime(%v, %v) = %v, want %v", tt.left, tt.left, got, tt.want)
