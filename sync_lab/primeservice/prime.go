@@ -1,49 +1,75 @@
 package primeservice
 
+import (
+	"math"
+	"sync"
+)
+
 const MinPrime Prime = 2
 
 type Prime = int
-type PrimeState = int
-
-const PrimeYes PrimeState = 1
-const PrimePending PrimeState = 0
-const PrimeNo PrimeState = -1
 
 type Task struct {
-	base    int
-	numbers []PrimeState
+	begin  int
+	end    int
+	primes []Prime
+}
+
+func (task *Task) IsEmpty() bool {
+	return task.begin >= task.end
 }
 
 func (task *Task) getNumber(index int) int {
-	return task.base + index
+	return task.begin + index
 }
 
 type Service struct {
-	calcNum      int
-	primes       []Prime
-	numbers      []PrimeState
-	countPerTask int
+	calcNum          int
+	primes           []Prime
+	countPerTask     int
+	runTaskWaitGroup sync.WaitGroup
 }
 
 func CreateService(calcNum int) *Service {
 	return &Service{
 		calcNum:      calcNum,
 		primes:       []Prime{MinPrime},
-		numbers:      []PrimeState{},
 		countPerTask: 100,
 	}
 }
 
 func (svc *Service) IsPrime(number int) bool {
 	for {
-		task := svc.getTask(number)
-		if len(task.numbers) == 0 {
+		tasks := svc.getTasks()
+		svc.runTasks(tasks)
+		svc.migratePrimes(tasks)
+		if len(tasks) == 0 || number < tasks[len(tasks)-1].end {
 			break
 		}
-		svc.runTask(task)
-		svc.migratePrimes()
 	}
 	return svc.findPrime(number) >= 0
+}
+
+func (svc *Service) getTasks() []*Task {
+	var lastTask *Task = nil
+	tasks := make([]*Task, 0, svc.calcNum)
+	for i := 0; i < svc.calcNum; i++ {
+		task := svc.getNextTask(lastTask)
+		if task.IsEmpty() {
+			break
+		}
+		tasks = append(tasks, task)
+		lastTask = task
+	}
+	return tasks
+}
+
+func (svc *Service) runTasks(tasks []*Task) {
+	for _, task := range tasks {
+		svc.runTaskWaitGroup.Add(1)
+		go svc.runTask(task)
+	}
+	svc.runTaskWaitGroup.Wait()
 }
 
 func (svc *Service) findPrime(number int) int {
@@ -88,45 +114,63 @@ func (svc *Service) GetPrimes(a, b int) []Prime {
 	return primes
 }
 
-func (svc *Service) getTask(number int) *Task {
-	lastPrime := svc.primes[len(svc.primes)-1]
-	base := lastPrime + len(svc.numbers) + 1
-	startIndex := len(svc.numbers)
-	for num := base; num <= number && num <= lastPrime*lastPrime; num++ {
-		svc.numbers = append(svc.numbers, PrimePending)
+func Max(numbers ...int) int {
+	result := math.MinInt
+	for _, num := range numbers {
+		if num > result {
+			result = num
+		}
 	}
-	return &Task{base: base, numbers: svc.numbers[startIndex:]}
+	return result
+}
+func Min(numbers ...int) int {
+	result := math.MaxInt
+	for _, num := range numbers {
+		if num < result {
+			result = num
+		}
+	}
+	return result
+}
+
+func (svc *Service) getNextTask(task *Task) *Task {
+	var start, end int
+	lastPrime := svc.primes[len(svc.primes)-1]
+	if task == nil {
+		start = lastPrime + 1
+	} else {
+		start = task.end
+	}
+	end = Min(lastPrime*lastPrime, start+svc.countPerTask)
+	return &Task{begin: start, end: end}
 }
 
 func (svc *Service) runTask(task *Task) {
-	for i := range task.numbers {
-		task.numbers[i] = svc.checkPrime(task.getNumber(i))
+	defer svc.runTaskWaitGroup.Done()
+	for i := task.begin; i < task.end; i++ {
+		if svc.checkPrime(i) {
+			task.primes = append(task.primes, i)
+		}
 	}
 }
 
-func (svc *Service) checkPrime(number int) PrimeState {
+func (svc *Service) checkPrime(number int) bool {
 	if number > svc.primes[len(svc.primes)-1]*svc.primes[len(svc.primes)-1] {
 		panic("已算出的质数数量不足，无法计算新的质数，应减小任务中的待计算的整数数量")
 	}
 	for _, prime := range svc.primes {
-		if number < prime*prime {
+		if prime*prime > number {
 			break
 		}
 		if number%prime == 0 {
-			return PrimeNo
+			return false
 		}
 	}
-	return PrimeYes
+	return true
 }
 
-func (svc *Service) migratePrimes() {
-	lastPrime := svc.primes[len(svc.primes)-1]
-	for i, state := range svc.numbers {
-		if state == PrimeYes {
-			svc.primes = append(svc.primes, lastPrime+i+1)
-		} else if state == PrimePending {
-			break
-		}
+func (svc *Service) migratePrimes(tasks []*Task) {
+	for _, task := range tasks {
+		svc.primes = append(svc.primes, task.primes...)
 	}
-	svc.numbers = svc.numbers[svc.primes[len(svc.primes)-1]-lastPrime:]
 }
