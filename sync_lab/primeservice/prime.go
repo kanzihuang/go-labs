@@ -9,6 +9,25 @@ const MinPrime Prime = 2
 
 type Prime = int
 
+func Max(numbers ...int) int {
+	result := math.MinInt
+	for _, num := range numbers {
+		if num > result {
+			result = num
+		}
+	}
+	return result
+}
+func Min(numbers ...int) int {
+	result := math.MaxInt
+	for _, num := range numbers {
+		if num < result {
+			result = num
+		}
+	}
+	return result
+}
+
 type Task struct {
 	begin  int
 	end    int
@@ -17,10 +36,6 @@ type Task struct {
 
 func (task *Task) IsEmpty() bool {
 	return task.begin >= task.end
-}
-
-func (task *Task) getNumber(index int) int {
-	return task.begin + index
 }
 
 type Service struct {
@@ -112,25 +127,6 @@ func (svc *Service) GetPrimes(a, b int) []Prime {
 		}
 	}
 	return primes
-}
-
-func Max(numbers ...int) int {
-	result := math.MinInt
-	for _, num := range numbers {
-		if num > result {
-			result = num
-		}
-	}
-	return result
-}
-func Min(numbers ...int) int {
-	result := math.MaxInt
-	for _, num := range numbers {
-		if num < result {
-			result = num
-		}
-	}
-	return result
 }
 
 func (svc *Service) getNextTask(task *Task) *Task {
