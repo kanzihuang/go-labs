@@ -1,7 +1,8 @@
 package primeservice
 
 import (
-	"math"
+	"go-labs/utils"
+	"runtime"
 	"sync"
 )
 
@@ -9,82 +10,119 @@ const MinPrime Prime = 2
 
 type Prime = int
 
-func Max(numbers ...int) int {
-	result := math.MinInt
-	for _, num := range numbers {
-		if num > result {
-			result = num
-		}
-	}
-	return result
-}
-func Min(numbers ...int) int {
-	result := math.MaxInt
-	for _, num := range numbers {
-		if num < result {
-			result = num
-		}
-	}
-	return result
-}
-
 type Task struct {
-	begin  int
-	end    int
-	primes []Prime
+	begin       int
+	end         int
+	priorPrimes []Prime
+	taskPrimes  []Prime
+	finished    bool
 }
 
 func (task *Task) IsEmpty() bool {
 	return task.begin >= task.end
 }
 
-type Service struct {
-	calcNum          int
-	primes           []Prime
-	countPerTask     int
-	runTaskWaitGroup sync.WaitGroup
+type QueryData struct {
+	number     int
+	resultChan chan bool
 }
 
-func CreateService(calcNum int) *Service {
-	return &Service{
-		calcNum:      calcNum,
-		primes:       []Prime{MinPrime},
-		countPerTask: 100,
+type Service struct {
+	calcNum        int
+	primes         []Prime
+	countPerTask   int
+	queryChan      chan QueryData
+	resultChan     chan bool
+	taskChan       chan *Task
+	taskFinishChan chan bool
+}
+
+var svc *Service
+var once sync.Once
+
+func NewService() *Service {
+	calcNum := runtime.GOMAXPROCS(8)
+	once.Do(func() {
+		svc = &Service{
+			calcNum:        calcNum,
+			primes:         []Prime{MinPrime},
+			countPerTask:   100,
+			queryChan:      make(chan QueryData, calcNum),
+			resultChan:     make(chan bool, calcNum),
+			taskChan:       make(chan *Task, calcNum),
+			taskFinishChan: make(chan bool, calcNum),
+		}
+		for i := 0; i < calcNum; i++ {
+			go svc.worker()
+		}
+		go svc.run()
+	})
+	return svc
+}
+
+func (svc *Service) worker() {
+	for {
+		task := <-svc.taskChan
+		task.runTask()
+		svc.taskFinishChan <- true
+	}
+}
+
+func (svc *Service) run() {
+OuterLoop:
+	for {
+		var lastTask, nextTask *Task
+		var tasks []*Task
+		// todo: 多个查询并发时，实现计算量小的查询先返回结果
+		select {
+		case queryData := <-svc.queryChan:
+			lastIndex := len(svc.primes) - 1
+			if queryData.number <= svc.primes[lastIndex] {
+				queryData.resultChan <- svc.findPrime(queryData.number) >= 0
+				break
+			}
+			for finished := false; finished == false; {
+				if nextTask == nil {
+					nextTask = svc.getNextTask(queryData.number, lastTask)
+				}
+				select {
+				case svc.taskChan <- nextTask:
+					if !nextTask.IsEmpty() {
+						tasks = append(tasks, nextTask)
+					}
+					lastTask = nextTask
+					nextTask = nil
+				case <-svc.taskFinishChan:
+					var i int
+					var task *Task
+					for i, task = range tasks {
+						if task.finished {
+							svc.primes = append(svc.primes, task.taskPrimes...)
+							if task.end > queryData.number {
+								finished = true
+								queryData.resultChan <- svc.findPrime(queryData.number) >= 0
+								continue OuterLoop
+							}
+						} else {
+							break
+						}
+					}
+					if i < len(tasks) {
+						tasks = tasks[i:]
+					} else {
+						tasks = nil
+					}
+				}
+			}
+		}
 	}
 }
 
 func (svc *Service) IsPrime(number int) bool {
-	for {
-		tasks := svc.getTasks()
-		svc.runTasks(tasks)
-		svc.migratePrimes(tasks)
-		if len(tasks) == 0 || number < tasks[len(tasks)-1].end {
-			break
-		}
-	}
-	return svc.findPrime(number) >= 0
-}
-
-func (svc *Service) getTasks() []*Task {
-	var lastTask *Task = nil
-	tasks := make([]*Task, 0, svc.calcNum)
-	for i := 0; i < svc.calcNum; i++ {
-		task := svc.getNextTask(lastTask)
-		if task.IsEmpty() {
-			break
-		}
-		tasks = append(tasks, task)
-		lastTask = task
-	}
-	return tasks
-}
-
-func (svc *Service) runTasks(tasks []*Task) {
-	for _, task := range tasks {
-		svc.runTaskWaitGroup.Add(1)
-		go svc.runTask(task)
-	}
-	svc.runTaskWaitGroup.Wait()
+	resultChan := make(chan bool)
+	defer close(resultChan)
+	svc.queryChan <- QueryData{number: number, resultChan: resultChan}
+	return <-resultChan
 }
 
 func (svc *Service) findPrime(number int) int {
@@ -129,7 +167,7 @@ func (svc *Service) GetPrimes(a, b int) []Prime {
 	return primes
 }
 
-func (svc *Service) getNextTask(task *Task) *Task {
+func (svc *Service) getNextTask(number int, task *Task) *Task {
 	var start, end int
 	lastPrime := svc.primes[len(svc.primes)-1]
 	if task == nil {
@@ -137,24 +175,25 @@ func (svc *Service) getNextTask(task *Task) *Task {
 	} else {
 		start = task.end
 	}
-	end = Min(lastPrime*lastPrime, start+svc.countPerTask)
-	return &Task{begin: start, end: end}
+	end = utils.Min(lastPrime*lastPrime+1, start+svc.countPerTask, number+1)
+	return &Task{begin: start, end: end, priorPrimes: svc.primes}
 }
 
-func (svc *Service) runTask(task *Task) {
-	defer svc.runTaskWaitGroup.Done()
+func (task *Task) runTask() {
 	for i := task.begin; i < task.end; i++ {
-		if svc.checkPrime(i) {
-			task.primes = append(task.primes, i)
+		if task.checkPrime(i) {
+			task.taskPrimes = append(task.taskPrimes, i)
 		}
 	}
+	task.finished = true
 }
 
-func (svc *Service) checkPrime(number int) bool {
-	if number > svc.primes[len(svc.primes)-1]*svc.primes[len(svc.primes)-1] {
+func (task *Task) checkPrime(number int) bool {
+	lastPrime := task.priorPrimes[len(task.priorPrimes)-1]
+	if number > lastPrime*lastPrime {
 		panic("已算出的质数数量不足，无法计算新的质数，应减小任务中的待计算的整数数量")
 	}
-	for _, prime := range svc.primes {
+	for _, prime := range task.priorPrimes {
 		if prime*prime > number {
 			break
 		}
@@ -163,10 +202,4 @@ func (svc *Service) checkPrime(number int) bool {
 		}
 	}
 	return true
-}
-
-func (svc *Service) migratePrimes(tasks []*Task) {
-	for _, task := range tasks {
-		svc.primes = append(svc.primes, task.primes...)
-	}
 }
