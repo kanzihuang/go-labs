@@ -1,6 +1,7 @@
 package primeservice
 
 import (
+	"fmt"
 	"go-labs/utils"
 	"runtime"
 	"sync"
@@ -9,48 +10,64 @@ import (
 const MinPrime Prime = 2
 
 type Prime = int
-
+type PrimeSection struct {
+	begin  int
+	end    int
+	primes []Prime
+}
 type Task struct {
-	begin       int
-	end         int
+	PrimeSection
 	priorPrimes []Prime
-	taskPrimes  []Prime
 	finished    bool
+}
+
+func (s *PrimeSection) Append(right *PrimeSection) {
+	if s.end != right.begin {
+		panic(fmt.Sprintf("添加的质数区间不连续：(%d - %d), (%d - %d)\n",
+			s.begin, s.end, right.begin, right.end))
+	}
+	s.end = right.end
+	s.primes = append(s.primes, right.primes...)
+}
+
+func (s *PrimeSection) InSection(number int) bool {
+	return number >= s.begin && number < s.end
 }
 
 func (task *Task) IsEmpty() bool {
 	return task.begin >= task.end
 }
 
-type QueryData struct {
+type Query struct {
 	number     int
-	resultChan chan bool
+	resultChan chan<- bool
+	finished   bool
 }
 
 type Service struct {
-	calcNum        int
-	primes         []Prime
-	countPerTask   int
-	queryChan      chan QueryData
-	resultChan     chan bool
+	primes         PrimeSection
+	queries        []*Query
+	tasks          []*Task
+	queryChan      chan *Query
 	taskChan       chan *Task
-	taskFinishChan chan bool
+	taskFinishChan chan *struct{}
 }
 
+const countPerTask int = 100
+
+var calcNum int = runtime.GOMAXPROCS(0)
+
+// var calcNum int = 2
 var svc *Service
 var once sync.Once
 
 func NewService() *Service {
-	calcNum := runtime.GOMAXPROCS(8)
 	once.Do(func() {
 		svc = &Service{
-			calcNum:        calcNum,
-			primes:         []Prime{MinPrime},
-			countPerTask:   100,
-			queryChan:      make(chan QueryData, calcNum),
-			resultChan:     make(chan bool, calcNum),
+			primes:         PrimeSection{begin: MinPrime, end: MinPrime + 1, primes: []Prime{MinPrime}},
+			queryChan:      make(chan *Query, calcNum),
 			taskChan:       make(chan *Task, calcNum),
-			taskFinishChan: make(chan bool, calcNum),
+			taskFinishChan: make(chan *struct{}, calcNum),
 		}
 		for i := 0; i < calcNum; i++ {
 			go svc.worker()
@@ -64,80 +81,116 @@ func (svc *Service) worker() {
 	for {
 		task := <-svc.taskChan
 		task.runTask()
-		svc.taskFinishChan <- true
+		svc.taskFinishChan <- &struct{}{}
+	}
+}
+func recvFromChannel[T any](channel <-chan *T, waiting bool) *T {
+	if waiting {
+		select {
+		case data := <-channel:
+			return data
+		}
+	} else {
+		select {
+		case data := <-channel:
+			return data
+		default:
+			return nil
+		}
 	}
 }
 
 func (svc *Service) run() {
-OuterLoop:
+	var lastTask, nextTask *Task
 	for {
-		var lastTask, nextTask *Task
-		var tasks []*Task
-		// todo: 多个查询并发时，实现计算量小的查询先返回结果
-		select {
-		case queryData := <-svc.queryChan:
-			lastIndex := len(svc.primes) - 1
-			if queryData.number <= svc.primes[lastIndex] {
-				queryData.resultChan <- svc.findPrime(queryData.number) >= 0
-				break
-			}
-			for finished := false; finished == false; {
-				if nextTask == nil {
-					nextTask = svc.getNextTask(queryData.number, lastTask)
-				}
-				select {
-				case svc.taskChan <- nextTask:
-					if !nextTask.IsEmpty() {
-						tasks = append(tasks, nextTask)
-					}
-					lastTask = nextTask
-					nextTask = nil
-				case <-svc.taskFinishChan:
-					var i int
-					var task *Task
-					for i, task = range tasks {
-						if task.finished {
-							svc.primes = append(svc.primes, task.taskPrimes...)
-							if task.end > queryData.number {
-								finished = true
-								queryData.resultChan <- svc.findPrime(queryData.number) >= 0
-								continue OuterLoop
-							}
-						} else {
-							break
-						}
-					}
-					if i < len(tasks) {
-						tasks = tasks[i:]
-					} else {
-						tasks = nil
-					}
-				}
-			}
+		// 接收新查询（如查询队列为空，等待新的查询）
+		if q := recvFromChannel(svc.queryChan, svc.queries == nil); q != nil {
+			svc.queries = append(svc.queries, q)
 		}
+
+		// 获取新的任务（如条件不满足，返回空任务）
+		if nextTask == nil || nextTask.IsEmpty() {
+			nextTask = svc.primes.getNextTask(lastTask)
+		}
+
+		// 接收任务完成情况（如后续任务为空，等待存量任务完成）
+		if nil != recvFromChannel(svc.taskFinishChan, nextTask.IsEmpty()) {
+			svc.checkTasksFinished()
+			svc.checkQueriesFinished()
+		}
+
+		// 发送任务（该任务非空，如 channel 已满，直接返回 false）
+		if svc.sendTask(nextTask) {
+			lastTask, nextTask = nextTask, nil
+		}
+	}
+}
+
+func (svc *Service) sendTask(nextTask *Task) bool {
+	select {
+	case svc.taskChan <- nextTask:
+		svc.tasks = append(svc.tasks, nextTask)
+		return true
+	default:
+		return false
+	}
+}
+
+func (svc *Service) checkTasksFinished() {
+	var task *Task
+	finishedCount := 0
+	for _, task = range svc.tasks {
+		if task.finished {
+			svc.primes.Append(&task.PrimeSection)
+			finishedCount++
+		} else {
+			break
+		}
+	}
+	if finishedCount < len(svc.tasks) {
+		svc.tasks = svc.tasks[finishedCount:]
+	} else {
+		svc.tasks = nil
+	}
+}
+
+func (svc *Service) checkQueriesFinished() {
+	finishedCount := 0
+	for _, query := range svc.queries {
+		if !query.finished && svc.primes.InSection(query.number) {
+			query.finished = true
+			query.resultChan <- svc.primes.findPrime(query.number) >= 0
+		}
+		if query.finished {
+			finishedCount++
+		}
+	}
+	if finishedCount == len(svc.queries) {
+		svc.queries = nil
 	}
 }
 
 func (svc *Service) IsPrime(number int) bool {
+	if number < MinPrime {
+		return false
+	}
 	resultChan := make(chan bool)
 	defer close(resultChan)
-	svc.queryChan <- QueryData{number: number, resultChan: resultChan}
+	svc.queryChan <- &Query{number: number, resultChan: resultChan}
 	return <-resultChan
 }
 
-func (svc *Service) findPrime(number int) int {
-	if number == MinPrime {
-		return 0
-	} else if number%2 == 0 {
+func (s *PrimeSection) findPrime(number int) int {
+	if !s.InSection(number) {
 		return -1
 	}
-	firstIndex, lastIndex := 0, len(svc.primes)-1
+	firstIndex, lastIndex := 0, len(s.primes)-1
 	for {
-		if number < svc.primes[firstIndex] || number > svc.primes[lastIndex] {
+		if number < s.primes[firstIndex] || number > s.primes[lastIndex] {
 			return -1
 		}
 		middleIndex := (firstIndex + lastIndex) / 2
-		middle := svc.primes[middleIndex]
+		middle := s.primes[middleIndex]
 		if number == middle {
 			return middleIndex
 		} else if number < middle {
@@ -167,22 +220,22 @@ func (svc *Service) GetPrimes(a, b int) []Prime {
 	return primes
 }
 
-func (svc *Service) getNextTask(number int, task *Task) *Task {
+func (s *PrimeSection) getNextTask(task *Task) *Task {
 	var start, end int
-	lastPrime := svc.primes[len(svc.primes)-1]
 	if task == nil {
-		start = lastPrime + 1
+		start = s.end
 	} else {
 		start = task.end
 	}
-	end = utils.Min(lastPrime*lastPrime+1, start+svc.countPerTask, number+1)
-	return &Task{begin: start, end: end, priorPrimes: svc.primes}
+	lastPrime := s.primes[len(s.primes)-1]
+	end = utils.Min(lastPrime*lastPrime+1, start+countPerTask)
+	return &Task{PrimeSection: PrimeSection{begin: start, end: end}, priorPrimes: s.primes}
 }
 
 func (task *Task) runTask() {
 	for i := task.begin; i < task.end; i++ {
 		if task.checkPrime(i) {
-			task.taskPrimes = append(task.taskPrimes, i)
+			task.primes = append(task.primes, i)
 		}
 	}
 	task.finished = true

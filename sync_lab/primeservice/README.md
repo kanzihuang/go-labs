@@ -14,10 +14,12 @@ sequenceDiagram
     note over main: 提取需要计算的整数，分批提交给工作线程计算
     loop 分批计算
         main -)+ work: 计算一批整数中的质数
-        work --)- main: 计算完毕
+        work --)- main: 该批次整数计算完毕
         note over main: 将质数添加到质数数组（始终保持从小到大的顺序）
+        alt 整数N计算完毕
+            main -->- client: 整数N计算完毕
+        end
     end        
-    main -->>- client: 计算完毕
     note over client: 输出整数N是否质数
 
 
