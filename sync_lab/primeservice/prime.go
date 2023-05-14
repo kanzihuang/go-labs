@@ -256,3 +256,44 @@ func (task *Task) checkPrime(number int) bool {
 	}
 	return true
 }
+
+func FilterPrime(n int) bool {
+	if n < 2 {
+		return false
+	}
+	isnp := make([]bool, n+1) // is not prime: 不是素数
+	isnp[0], isnp[1] = true, true
+	for i := 2; i <= n; i++ {
+		for j := 2; i*j <= n; j++ {
+			if isnp[j] == false {
+				isnp[i*j] = true
+				if i%j == 0 {
+					break
+				}
+			}
+		}
+	}
+	return !isnp[n]
+}
+
+func FilterPrime2(num int) bool {
+	if num < 2 {
+		return false
+	}
+	st := make([]bool, num+1)
+	primes := make([]int, num/2)
+	//1不是质数也不是合数
+	for i := 2; i <= num; i++ {
+		if !st[i] {
+			primes = append(primes, i) //没有被筛去,说明是质数
+		}
+		for j := 0; j < len(primes) && i*primes[j] <= num; j++ {
+			st[i*primes[j]] = true //筛去合数
+			if i%primes[j] == 0 {
+				break //核心操作,保证了O(n)的复杂度
+			}
+		}
+
+	}
+	return !st[num]
+}

@@ -11,6 +11,7 @@ func TestService_IsPrime(t *testing.T) {
 		number int
 		want   bool
 	}{
+		{name: "prime", number: 200000033, want: true},
 		{name: "prime", number: 100000007, want: true},
 		{name: "not prime", number: 10013, want: false},
 		{name: "prime", number: 2, want: true},
@@ -50,6 +51,8 @@ func TestService_GetPrimes(t *testing.T) {
 			want: []Prime{100003, 100019, 100043, 100049, 100057, 100069}},
 		{name: "large primes", left: 100000000, right: 100000100,
 			want: []Prime{100000007, 100000037, 100000039, 100000049, 100000073, 100000081}},
+		{name: "large primes", left: 200000000, right: 200000100,
+			want: []Prime{100000007, 100000037, 100000039, 100000049, 100000073, 100000081}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -61,6 +64,18 @@ func TestService_GetPrimes(t *testing.T) {
 				t.Errorf("GetPrimes(%v, %v) = %v, want %v", left, right, got, want)
 			}
 		})
+	}
+
+}
+
+func TestFilterPrime(t *testing.T) {
+	n := 200000033
+	//n := 10013
+	//n := 10
+	want := true
+	got := FilterPrime(n)
+	if got != want {
+		t.Errorf("FilterPrime(%d) got %v, but want %v\n", n, got, want)
 	}
 
 }
