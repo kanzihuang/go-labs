@@ -140,13 +140,13 @@ func ExampleRing_Link() {
 
 	// Initialize r with 0s
 	for i := 0; i < lr; i++ {
-		r.Value = 0
+		r.Value = i + 1
 		r = r.Next()
 	}
 
 	// Initialize s with 1s
 	for j := 0; j < ls; j++ {
-		s.Value = 1
+		s.Value = j + 11
 		s = s.Next()
 	}
 
