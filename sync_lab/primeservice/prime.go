@@ -84,7 +84,7 @@ func (svc *Service) worker() {
 		svc.taskFinishChan <- &struct{}{}
 	}
 }
-func recvFromChannel[T any](channel <-chan *T, waiting bool) *T {
+func recvFromChannel[T any](channel <-chan T, waiting bool) (result T) {
 	if waiting {
 		select {
 		case data := <-channel:
@@ -95,7 +95,7 @@ func recvFromChannel[T any](channel <-chan *T, waiting bool) *T {
 		case data := <-channel:
 			return data
 		default:
-			return nil
+			return
 		}
 	}
 }
