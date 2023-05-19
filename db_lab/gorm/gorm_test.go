@@ -1,17 +1,23 @@
-package db_lab
+package gorm_test
 
 import (
-	"database/sql"
 	_ "github.com/go-sql-driver/mysql"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 	"log"
 	"testing"
 )
 
 type Person struct {
+	Id     int
 	Name   string
 	Age    int
 	Tall   float32
 	Weight float32
+}
+
+func (*Person) TableName() string {
+	return "person"
 }
 
 var personMike = Person{
@@ -21,51 +27,55 @@ var personMike = Person{
 	Weight: 71.5,
 }
 
-func TestMysqlPing(t *testing.T) {
-	conn := getDbConnection(t)
-	defer conn.Close()
-	if err := conn.Ping(); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func getDbConnection(t *testing.T) *sql.DB {
-	conn, err := sql.Open("mysql", "reader:123456@tcp(mysql.123sou.cn:3306)/lab")
+func connectGorm(t *testing.T) *gorm.DB {
+	conn, err := gorm.Open(mysql.Open("reader:123456@tcp(mysql.123sou.cn:3306)/lab"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	return conn
 }
 
-func TestMysqlSelect(t *testing.T) {
-	conn := getDbConnection(t)
-	defer conn.Close()
+func TestGormFind(t *testing.T) {
+	conn := connectGorm(t)
 
 	queryPerson(t, conn)
 }
 
-func queryPerson(t *testing.T, conn *sql.DB) {
-	rows, err := conn.Query("select name, age, tall, weight from person where name <> ?", personMike.Name)
-	if err != nil {
-		t.Fatal(err)
+func queryPerson(t *testing.T, conn *gorm.DB) {
+	var persons []Person
+
+	if resp := conn.Where("Name = 'Tom'").Find(&persons); resp.Error != nil {
+		t.Error(resp.Error)
 	}
-	var person Person
-	for rows.Next() {
-		rows.Scan(&person.Name, &person.Age, &person.Tall, &person.Weight)
-		if person != personMike {
-			log.Printf("person: %+v\n", person)
-		}
+
+	for _, person := range persons {
+		log.Printf("person: %+v\n", person)
 	}
 }
 
-func TestMysqlInsert(t *testing.T) {
-	conn := getDbConnection(t)
-	defer conn.Close()
+func TestGormCreate(t *testing.T) {
+	conn := connectGorm(t)
+	person := personMike
 
-	_, err := conn.Exec("insert person(name, age, tall, weight) values(?, ?, ?, ?)",
-		personMike.Name, personMike.Age, personMike.Tall, personMike.Weight)
-	if err != nil {
-		t.Fatal(err)
+	if resp := conn.Create(&person); resp.Error != nil {
+		t.Error(resp.Error)
 	}
-	queryPerson(t, conn)
+}
+
+func TestGormUpdate(t *testing.T) {
+	conn := connectGorm(t)
+	person := Person{Id: 1, Name: "Mary", Age: 0}
+
+	if resp := conn.Select("Name", "Age").Updates(&person); resp.Error != nil {
+		t.Error(resp.Error)
+	}
+}
+
+func TestGormDelete(t *testing.T) {
+	conn := connectGorm(t)
+	person := Person{Id: 3}
+
+	if resp := conn.Delete(&person); resp.Error != nil {
+		t.Error(resp.Error)
+	}
 }
