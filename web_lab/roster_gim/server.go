@@ -2,12 +2,23 @@ package main
 
 import (
 	"github.com/gin-gonic/gin"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 	"log"
 	"net/http"
 )
 
 func main() {
-	roster := NewClassRoster()
+	conn, err := gorm.Open(mysql.Open("reader:123456@tcp(mysql.123sou.cn:3306)/lab"))
+	if err != nil {
+		log.Fatal("数据库连接失败, " + err.Error())
+	}
+	roster := NewDbRoster(conn)
+	//roster := NewMapRoster()
+	runServer(roster)
+}
+
+func runServer(roster Roster) {
 	r := gin.Default()
 	r.POST("/registry", func(context *gin.Context) {
 		var person Person
