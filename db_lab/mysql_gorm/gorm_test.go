@@ -1,4 +1,4 @@
-package gorm_test
+package mysql_gorm_test
 
 import (
 	_ "github.com/go-sql-driver/mysql"

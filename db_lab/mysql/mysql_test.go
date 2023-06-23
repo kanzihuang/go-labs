@@ -1,4 +1,4 @@
-package mysql_test
+package mysql
 
 import (
 	"database/sql"
@@ -8,6 +8,7 @@ import (
 )
 
 type Person struct {
+	Id     int
 	Name   string
 	Age    int
 	Tall   float32
