@@ -6,10 +6,10 @@ import (
 
 type sdkHttpServer struct {
 	Name    string
-	handler Handler
+	handler *Handler
 }
 
-func (s *sdkHttpServer) Route(method, pattern string, handlerFunc func(c *Context)) {
+func (s *sdkHttpServer) Route(method, pattern string, handlerFunc handlerFunc) {
 	s.handler.Route(method, pattern, handlerFunc)
 }
 
@@ -20,6 +20,6 @@ func (s *sdkHttpServer) Start(address string) error {
 func NewServer() Server {
 	return &sdkHttpServer{
 		Name:    "sdkHttpServer",
-		handler: NewHandlerBasedOnMap(),
+		handler: NewHandler(),
 	}
 }

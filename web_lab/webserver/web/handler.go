@@ -1,38 +1,27 @@
 package web
 
 import (
-	"fmt"
 	"net/http"
 )
 
-type HandlerBasedOnMap struct {
-	handlers map[string]func(c *Context)
+type Handler struct {
+	router Router
 }
 
-var _ Handler = (*HandlerBasedOnMap)(nil)
-
-func NewHandlerBasedOnMap() Handler {
-	return &HandlerBasedOnMap{
-		handlers: map[string]func(c *Context){},
+func NewHandler() *Handler {
+	return &Handler{
+		router: NewRouterBaseOnMap(),
 	}
 }
 
-func (h *HandlerBasedOnMap) Route(method string, pattern string, handlerFunc func(c *Context)) {
-	key := h.key(method, pattern)
-	h.handlers[key] = handlerFunc
+func (h *Handler) Route(method string, pattern string, handlerFunc handlerFunc) {
+	h.router.Route(method, pattern, handlerFunc)
 }
 
-func (h *HandlerBasedOnMap) key(method string, path string) string {
-	return fmt.Sprintf("%s#%s", method, path)
-}
-
-func (h *HandlerBasedOnMap) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	key := h.key(r.Method, r.URL.Path)
-	if handler, ok := h.handlers[key]; ok {
-		c := &Context{W: w, R: r}
-		handler(c)
-	} else {
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	c := &Context{W: w, R: r}
+	if h.router.handle(r.Method, r.URL.Path, c) != true {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("Not any router matched"))
+		_, _ = w.Write([]byte("Not any router matched"))
 	}
 }
