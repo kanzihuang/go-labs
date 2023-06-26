@@ -26,7 +26,7 @@ func main() {
 	server.Route(http.MethodGet, "/header", header)
 	server.Route(http.MethodPost, "/form", form)
 	server.Route(http.MethodPost, "/body", body)
-	server.Route(http.MethodPost, "/signup", signUp)
+	server.Route(http.MethodPost, "/user/signup", signUp)
 	log.Fatal(server.Start(":8080"))
 }
 

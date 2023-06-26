@@ -34,6 +34,5 @@ func (c *Context) WriteJson(status int, data interface{}) error {
 	if err != nil {
 		return err
 	}
-	c.W.WriteHeader(status)
 	return nil
 }
