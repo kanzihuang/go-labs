@@ -14,13 +14,15 @@ func NewHandler() *Handler {
 	}
 }
 
-func (h *Handler) Route(method string, pattern string, handlerFunc handlerFunc) {
+func (h *Handler) Route(method string, pattern string, handlerFunc HandlerFunc) {
 	h.router.Route(method, pattern, handlerFunc)
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	c := NewContext(w, r)
-	if h.router.handle(r.Method, r.URL.Path, c) != true {
+	if handlerFunc := h.router.FindHandlerFunc(r.Method, r.URL.Path); handlerFunc != nil {
+		c := NewContext(w, r)
+		handlerFunc(c)
+	} else {
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte("Not any router matched"))
 	}

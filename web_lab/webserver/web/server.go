@@ -9,7 +9,7 @@ type sdkHttpServer struct {
 	handler *Handler
 }
 
-func (s *sdkHttpServer) Route(method, pattern string, handlerFunc handlerFunc) {
+func (s *sdkHttpServer) Route(method, pattern string, handlerFunc HandlerFunc) {
 	s.handler.Route(method, pattern, handlerFunc)
 }
 
