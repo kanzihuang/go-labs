@@ -7,7 +7,6 @@ type Node interface {
 	findHandlerFunc(method string, names []string) HandlerFunc
 	isMatched(method string, name string) bool
 	addChild(method string, names []string, handlerFunc HandlerFunc)
-	isRoot() bool
 	getHandlerFunc() HandlerFunc
 }
 
@@ -35,15 +34,11 @@ type BaseNode struct {
 
 type ExactNode struct {
 	BaseNode
-	children []Node
+	children map[string]Node
 }
 
 func (n *ExactNode) getHandlerFunc() HandlerFunc {
 	return n.handlerFunc
-}
-
-func (n *ExactNode) isRoot() bool {
-	return n.method == ""
 }
 
 func NewExactNode(method string, name string, handlerFunc HandlerFunc) Node {
@@ -53,26 +48,20 @@ func NewExactNode(method string, name string, handlerFunc HandlerFunc) Node {
 			name:        name,
 			handlerFunc: handlerFunc,
 		},
+		children: make(map[string]Node),
 	}
 }
 
 func (n *ExactNode) addChild(method string, names []string, handlerFunc HandlerFunc) {
-
-	var node Node = nil
 	name := names[0]
-	for _, child := range n.children {
-		if child.isMatched(method, name) {
-			node = child
-			break
-		}
-	}
+	node := n.findChild(method, name)
 	if node == nil {
 		if len(names) <= 1 {
 			node = NewExactNode(method, name, handlerFunc)
 		} else {
 			node = NewExactNode(method, name, nil)
 		}
-		n.children = append(n.children, node)
+		n.children[n.key(method, name)] = node
 	}
 	if len(names) > 1 {
 		node.addChild(method, names[1:], handlerFunc)
@@ -80,14 +69,14 @@ func (n *ExactNode) addChild(method string, names []string, handlerFunc HandlerF
 }
 
 func (n *ExactNode) isMatched(method string, name string) bool {
-	return n.method == method && n.name == name
+	return n.method == method && (n.name == "*" || n.name == name)
 }
 
 func (n *ExactNode) findChild(method string, name string) Node {
-	for _, child := range n.children {
-		if child.isMatched(method, name) {
-			return child
-		}
+	if child := n.children[n.key(method, name)]; child != nil {
+		return child
+	} else if child := n.children[n.key(method, "*")]; child != nil {
+		return child
 	}
 	return nil
 }
@@ -102,6 +91,10 @@ func (n *ExactNode) findHandlerFunc(method string, names []string) HandlerFunc {
 		return matched.getHandlerFunc()
 	}
 	return n.getHandlerFunc()
+}
+
+func (n *ExactNode) key(method string, name string) string {
+	return method + "#" + name
 }
 
 func (h *RouterBasedOnTree) Route(method string, pattern string, handlerFunc HandlerFunc) {

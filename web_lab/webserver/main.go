@@ -28,12 +28,19 @@ func main() {
 	server.Route(http.MethodPost, "/body", body)
 	server.Route(http.MethodPost, "/user/signup", signUp)
 	server.Route(http.MethodGet, "/user/*", user)
+	server.Route(http.MethodPost, "/user/*/disable", disableUser)
 	log.Fatal(server.Start(":8080"))
+}
+
+func disableUser(c *web.Context) {
+	_ = c.WriteJson(http.StatusOK, &commonResponse{
+		Data: c.R.URL.Path[len("/user/"):],
+	})
 }
 
 func user(c *web.Context) {
 	_ = c.WriteJson(http.StatusOK, &commonResponse{
-		Data: c.R.URL.Path,
+		Data: c.R.URL.Path[len("/user/"):],
 	})
 }
 
