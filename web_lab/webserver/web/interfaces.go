@@ -14,6 +14,5 @@ type Routable interface {
 
 type Router interface {
 	Routable
-	//handle(method string, path string, context *Context) bool
 	FindHandlerFunc(method string, path string) HandlerFunc
 }
