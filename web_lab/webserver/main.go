@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 )
 
 type signUpReq struct {
@@ -21,7 +22,7 @@ type commonResponse struct {
 }
 
 func main() {
-	server := web.NewServer()
+	server := web.NewServer("my server", web.MetricsFilterBuilder)
 	server.Route(http.MethodGet, "/", home)
 	server.Route(http.MethodGet, "/header", header)
 	server.Route(http.MethodPost, "/form", form)
@@ -29,7 +30,15 @@ func main() {
 	server.Route(http.MethodPost, "/user/signup", signUp)
 	server.Route(http.MethodGet, "/user/*", user)
 	server.Route(http.MethodPost, "/user/*/disable", disableUser)
+	server.Route(http.MethodGet, "/sleep", sleep)
 	log.Fatal(server.Start(":8080"))
+}
+
+func sleep(c *web.Context) {
+	time.Sleep(time.Second)
+	c.WriteJson(http.StatusOK, &commonResponse{
+		Msg: "Sleep...",
+	})
 }
 
 func disableUser(c *web.Context) {
