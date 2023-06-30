@@ -1,33 +1,77 @@
 package web
 
-import "strings"
+import (
+	"log"
+	"net/http"
+	"strings"
+)
 
 type Node interface {
-	findChild(method string, name string) Node
-	findHandlerFunc(method string, names []string) HandlerFunc
-	isMatched(method string, name string) bool
-	addChild(method string, names []string, handlerFunc HandlerFunc)
+	findChild(name string) Node
+	findHandlerFunc(names []string) HandlerFunc
+	isMatched(name string) bool
+	addChild(names []string, handlerFunc HandlerFunc)
 	getHandlerFunc() HandlerFunc
+	setHandlerFunc(handlerFunc HandlerFunc)
+}
+
+var supportMethods = [4]string{
+	http.MethodGet,
+	http.MethodPost,
+	http.MethodPut,
+	http.MethodDelete,
 }
 
 type RouterBasedOnTree struct {
-	root Node
+	forest map[string]Node
+	root   Node
 }
 
-func (h *RouterBasedOnTree) FindHandlerFunc(method string, path string) HandlerFunc {
-	path = strings.TrimRight(path, "/")
+func (r *RouterBasedOnTree) Route(method string, pattern string, handlerFunc HandlerFunc) {
+	pattern = strings.Trim(pattern, "/")
+	names := strings.Split(pattern, "/")
+	root, ok := r.forest[method]
+	if ok {
+		if len(names) == 1 && names[0] == "" {
+			root.setHandlerFunc(handlerFunc)
+		} else {
+			root.addChild(names, handlerFunc)
+		}
+	} else {
+		log.Panic("Not supported method", method)
+	}
+}
+
+func (r *RouterBasedOnTree) FindHandlerFunc(method string, path string) HandlerFunc {
+	path = strings.Trim(path, "/")
 	names := strings.Split(path, "/")
-	return h.root.findHandlerFunc(method, names)
+	root, ok := r.forest[method]
+	if ok {
+		if len(names) == 1 && names[0] == "" {
+			return root.getHandlerFunc()
+		} else {
+			if handlerFunc := root.findHandlerFunc(names); handlerFunc != nil {
+				return handlerFunc
+			} else {
+				return root.getHandlerFunc()
+			}
+		}
+	} else {
+		return nil
+	}
 }
 
 func NewRouterBasedOnTree() Router {
+	forest := make(map[string]Node, len(supportMethods))
+	for _, method := range supportMethods {
+		forest[method] = NewExactNode("", nil)
+	}
 	return &RouterBasedOnTree{
-		root: NewExactNode("", "", nil),
+		forest: forest,
 	}
 }
 
 type BaseNode struct {
-	method      string
 	name        string
 	handlerFunc HandlerFunc
 }
@@ -37,14 +81,17 @@ type ExactNode struct {
 	children map[string]Node
 }
 
+func (n *ExactNode) setHandlerFunc(handlerFunc HandlerFunc) {
+	n.handlerFunc = handlerFunc
+}
+
 func (n *ExactNode) getHandlerFunc() HandlerFunc {
 	return n.handlerFunc
 }
 
-func NewExactNode(method string, name string, handlerFunc HandlerFunc) Node {
+func NewExactNode(name string, handlerFunc HandlerFunc) Node {
 	return &ExactNode{
 		BaseNode: BaseNode{
-			method:      method,
 			name:        name,
 			handlerFunc: handlerFunc,
 		},
@@ -52,53 +99,43 @@ func NewExactNode(method string, name string, handlerFunc HandlerFunc) Node {
 	}
 }
 
-func (n *ExactNode) addChild(method string, names []string, handlerFunc HandlerFunc) {
+func (n *ExactNode) addChild(names []string, handlerFunc HandlerFunc) {
 	name := names[0]
-	node := n.findChild(method, name)
+	node := n.findChild(name)
 	if node == nil {
 		if len(names) <= 1 {
-			node = NewExactNode(method, name, handlerFunc)
+			node = NewExactNode(name, handlerFunc)
 		} else {
-			node = NewExactNode(method, name, nil)
+			node = NewExactNode(name, nil)
 		}
-		n.children[n.key(method, name)] = node
+		n.children[name] = node
 	}
 	if len(names) > 1 {
-		node.addChild(method, names[1:], handlerFunc)
+		node.addChild(names[1:], handlerFunc)
 	}
 }
 
-func (n *ExactNode) isMatched(method string, name string) bool {
-	return n.method == method && (n.name == "*" || n.name == name)
+func (n *ExactNode) isMatched(name string) bool {
+	return n.name == "*" || n.name == name
 }
 
-func (n *ExactNode) findChild(method string, name string) Node {
-	if child := n.children[n.key(method, name)]; child != nil {
+func (n *ExactNode) findChild(name string) Node {
+	if child := n.children[name]; child != nil {
 		return child
-	} else if child := n.children[n.key(method, "*")]; child != nil {
+	} else if child := n.children["*"]; child != nil {
 		return child
 	}
 	return nil
 }
 
-func (n *ExactNode) findHandlerFunc(method string, names []string) HandlerFunc {
-	if matched := n.findChild(method, names[0]); matched != nil {
+func (n *ExactNode) findHandlerFunc(names []string) HandlerFunc {
+	if matched := n.findChild(names[0]); matched != nil {
 		if len(names) > 1 {
-			if handlerFunc := matched.findHandlerFunc(method, names[1:]); handlerFunc != nil {
+			if handlerFunc := matched.findHandlerFunc(names[1:]); handlerFunc != nil {
 				return handlerFunc
 			}
 		}
 		return matched.getHandlerFunc()
 	}
 	return n.getHandlerFunc()
-}
-
-func (n *ExactNode) key(method string, name string) string {
-	return method + "#" + name
-}
-
-func (h *RouterBasedOnTree) Route(method string, pattern string, handlerFunc HandlerFunc) {
-	pattern = strings.TrimRight(pattern, "/")
-	names := strings.Split(pattern, "/")
-	h.root.addChild(method, names, handlerFunc)
 }
