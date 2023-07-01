@@ -28,8 +28,8 @@ func main() {
 	server.Route(http.MethodPost, "/form", form)
 	server.Route(http.MethodPost, "/body", body)
 	server.Route(http.MethodPost, "/user/signup", signUp)
-	server.Route(http.MethodGet, "/user/*", user)
-	server.Route(http.MethodPost, "/user/*/disable", disableUser)
+	server.Route(http.MethodGet, "/user/:userName", user)
+	server.Route(http.MethodPost, "/user/:userName/disable", disableUser)
 	server.Route(http.MethodGet, "/sleep", sleep)
 	log.Fatal(server.Start(":8080"))
 }
@@ -43,13 +43,13 @@ func sleep(c *web.Context) {
 
 func disableUser(c *web.Context) {
 	_ = c.WriteJson(http.StatusOK, &commonResponse{
-		Data: c.R.URL.Path[len("/user/"):],
+		Data: c.ParamMap["userName"] + " was disabled",
 	})
 }
 
 func user(c *web.Context) {
 	_ = c.WriteJson(http.StatusOK, &commonResponse{
-		Data: c.R.URL.Path[len("/user/"):],
+		Data: c.ParamMap["userName"],
 	})
 }
 
