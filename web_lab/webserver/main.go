@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"go-labs/web_lab/webserver/web"
 	"io"
-	"log"
 	"net/http"
 	"time"
 )
@@ -22,7 +21,8 @@ type commonResponse struct {
 }
 
 func main() {
-	server := web.NewServer("my server", web.MetricsFilterBuilder)
+	shutdown := web.NewShutdown()
+	server := web.NewServer("my server", web.MetricsFilterBuilder, shutdown.ShutdownFilterBuilder)
 	server.Route(http.MethodGet, "/", home)
 	server.Route(http.MethodGet, "/header", header)
 	server.Route(http.MethodPost, "/form", form)
@@ -31,11 +31,13 @@ func main() {
 	server.Route(http.MethodGet, "/user/:userName", user)
 	server.Route(http.MethodPost, "/user/:userName/disable", disableUser)
 	server.Route(http.MethodGet, "/sleep", sleep)
-	log.Fatal(server.Start(":8080"))
+	go server.Start(":8080")
+
+	shutdown.WaitForShutdown(shutdown.TerminateAndWaitForShutdown)
 }
 
 func sleep(c *web.Context) {
-	time.Sleep(time.Second)
+	time.Sleep(time.Second * 10)
 	c.WriteJson(http.StatusOK, &commonResponse{
 		Msg: "Sleep...",
 	})
