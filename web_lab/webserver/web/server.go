@@ -2,12 +2,14 @@ package web
 
 import (
 	"net/http"
+	"sync"
 )
 
 type sdkHttpServer struct {
-	Name   string
-	router Router
-	root   Filter
+	Name        string
+	router      Router
+	root        Filter
+	contextPool sync.Pool
 }
 
 func (s *sdkHttpServer) Route(method, pattern string, handlerFunc HandlerFunc) {
@@ -15,14 +17,17 @@ func (s *sdkHttpServer) Route(method, pattern string, handlerFunc HandlerFunc) {
 }
 
 func (s *sdkHttpServer) Start(address string) error {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		c := NewContext(w, r)
-		s.root(c)
-	})
-	return http.ListenAndServe(address, nil)
+	return http.ListenAndServe(address, s)
 }
 
-func (s *sdkHttpServer) ServeHTTP(c *Context) {
+func (s *sdkHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	c := s.contextPool.Get().(*Context)
+	defer s.contextPool.Put(c)
+	c.Reset(w, r)
+	s.root(c)
+}
+
+func (s *sdkHttpServer) ServeHTTPWithContext(c *Context) {
 	if handlerFunc := s.router.FindHandlerFunc(c.R.Method, c.R.URL.Path); handlerFunc != nil {
 		handlerFunc(c)
 	} else {
@@ -35,8 +40,11 @@ func NewServer(name string, builders ...FilterBuilder) Server {
 	server := &sdkHttpServer{
 		Name:   name,
 		router: NewRouterBasedOnTree(),
+		contextPool: sync.Pool{
+			New: NewContext,
+		},
 	}
-	var root Filter = server.ServeHTTP
+	var root Filter = server.ServeHTTPWithContext
 	for i := len(builders) - 1; i >= 0; i-- {
 		b := builders[i]
 		root = b(root)
