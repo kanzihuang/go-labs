@@ -6,14 +6,10 @@ import (
 )
 
 type sdkHttpServer struct {
+	Router
 	Name        string
-	router      Router
 	root        Filter
 	contextPool sync.Pool
-}
-
-func (s *sdkHttpServer) Route(method, pattern string, handlerFunc HandlerFunc) {
-	s.router.Route(method, pattern, handlerFunc)
 }
 
 func (s *sdkHttpServer) Start(address string) error {
@@ -28,7 +24,7 @@ func (s *sdkHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *sdkHttpServer) ServeHTTPWithContext(c *Context) {
-	if handlerFunc := s.router.FindHandlerFunc(c.R.Method, c.R.URL.Path); handlerFunc != nil {
+	if handlerFunc := s.FindHandlerFunc(c.R.Method, c.R.URL.Path); handlerFunc != nil {
 		handlerFunc(c)
 	} else {
 		c.W.WriteHeader(http.StatusNotFound)
@@ -38,8 +34,8 @@ func (s *sdkHttpServer) ServeHTTPWithContext(c *Context) {
 
 func NewServer(name string, builders ...FilterBuilder) Server {
 	server := &sdkHttpServer{
+		Router: NewRouterBasedOnTree(),
 		Name:   name,
-		router: NewRouterBasedOnTree(),
 		contextPool: sync.Pool{
 			New: NewContext,
 		},
