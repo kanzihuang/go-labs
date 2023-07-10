@@ -1,7 +1,6 @@
 package web
 
 import (
-	"log"
 	"net/http"
 	"strings"
 )
@@ -11,8 +10,11 @@ type Node interface {
 	findHandlerFunc(path string, paths []string) HandlerFunc
 	isMatched(name string) bool
 	addChild(names []string, handlerFunc HandlerFunc)
-	handlerFuncBuilder(name string, handlerFunc HandlerFunc) HandlerFunc
+	wrapHandlerFunc(name string, handlerFunc HandlerFunc) HandlerFunc
+	getHandlerFunc() HandlerFunc
 	setHandlerFunc(handlerFunc HandlerFunc)
+	getName() string
+	getChildren() map[string]Node
 }
 
 var supportMethods = [4]string{
@@ -24,21 +26,20 @@ var supportMethods = [4]string{
 
 type RouterBasedOnTree struct {
 	forest map[string]Node
-	root   Node
 }
 
 func (r *RouterBasedOnTree) Route(method string, pattern string, handlerFunc HandlerFunc) {
 	pattern = strings.TrimRight(pattern, "/")
 	names := strings.Split(pattern, "/")
 	root, ok := r.forest[method]
-	if ok {
-		if len(names) == 1 {
-			root.setHandlerFunc(handlerFunc)
-		} else {
-			root.addChild(names[1:], handlerFunc)
-		}
+	if !ok {
+		root = NewBaseNode("", nil)
+		r.forest[method] = root
+	}
+	if len(names) == 1 {
+		root.setHandlerFunc(handlerFunc)
 	} else {
-		log.Panic("Not supported method", method)
+		root.addChild(names[1:], handlerFunc)
 	}
 }
 
@@ -47,8 +48,8 @@ func (r *RouterBasedOnTree) FindHandlerFunc(method string, path string) HandlerF
 	names := strings.Split(path, "/")
 	root, ok := r.forest[method]
 	if ok {
-		if len(names) == 0 {
-			return root.handlerFuncBuilder("", nil)
+		if len(names) <= 1 {
+			return root.wrapHandlerFunc("", nil)
 		} else {
 			return root.findHandlerFunc(names[0], names[1:])
 		}
@@ -57,13 +58,9 @@ func (r *RouterBasedOnTree) FindHandlerFunc(method string, path string) HandlerF
 	}
 }
 
-func NewRouterBasedOnTree() Router {
-	forest := make(map[string]Node, len(supportMethods))
-	for _, method := range supportMethods {
-		forest[method] = NewBaseNode("", nil)
-	}
+func NewRouterBasedOnTree() *RouterBasedOnTree {
 	return &RouterBasedOnTree{
-		forest: forest,
+		forest: make(map[string]Node, len(supportMethods)),
 	}
 }
 
@@ -71,6 +68,18 @@ type BaseNode struct {
 	name        string
 	handlerFunc HandlerFunc
 	children    map[string]Node
+}
+
+func (n *BaseNode) getChildren() map[string]Node {
+	return n.children
+}
+
+func (n *BaseNode) getHandlerFunc() HandlerFunc {
+	return n.handlerFunc
+}
+
+func (n *BaseNode) getName() string {
+	return n.name
 }
 
 func NewBaseNode(name string, handlerFunc HandlerFunc) Node {
@@ -95,9 +104,9 @@ func NewParamNode(name string, handlerFunc HandlerFunc) Node {
 	}
 }
 
-func (n *ParamNode) handlerFuncBuilder(name string, handlerFunc HandlerFunc) HandlerFunc {
+func (n *ParamNode) wrapHandlerFunc(path string, handlerFunc HandlerFunc) HandlerFunc {
 	return func(c *Context) {
-		c.ParamMap[n.name] = name
+		c.ParamMap[n.name] = path
 		if handlerFunc != nil {
 			handlerFunc(c)
 		} else {
@@ -110,8 +119,12 @@ func (n *BaseNode) setHandlerFunc(handlerFunc HandlerFunc) {
 	n.handlerFunc = handlerFunc
 }
 
-func (n *BaseNode) handlerFuncBuilder(string, HandlerFunc) HandlerFunc {
-	return n.handlerFunc
+func (n *BaseNode) wrapHandlerFunc(path string, handlerFunc HandlerFunc) HandlerFunc {
+	if handlerFunc != nil {
+		return handlerFunc
+	} else {
+		return n.handlerFunc
+	}
 }
 
 func (n *BaseNode) addNode(name string, handlerFunc HandlerFunc) Node {
@@ -127,7 +140,6 @@ func (n *BaseNode) addNode(name string, handlerFunc HandlerFunc) Node {
 	}
 	n.children[key] = node
 	return node
-
 }
 
 func (n *BaseNode) addChild(names []string, handlerFunc HandlerFunc) {
@@ -161,18 +173,18 @@ func (n *BaseNode) findChild(name string) Node {
 }
 
 func (n *BaseNode) findHandlerFunc(path string, paths []string) HandlerFunc {
-	name := paths[0]
-	if matched := n.findChild(name); matched != nil {
+	childPath := paths[0]
+	var handlerFunc HandlerFunc
+	if matched := n.findChild(childPath); matched != nil {
 		if len(paths) > 1 {
-			if handlerFunc := matched.findHandlerFunc(name, paths[1:]); handlerFunc != nil {
-				return handlerFunc
-			}
+			handlerFunc = matched.findHandlerFunc(childPath, paths[1:])
+		} else {
+			handlerFunc = matched.wrapHandlerFunc(childPath, nil)
 		}
-		return matched.handlerFuncBuilder(name, nil)
 	}
-	return n.handlerFuncBuilder(path, nil)
+	return n.wrapHandlerFunc(path, handlerFunc)
 }
 
 func (n *ParamNode) findHandlerFunc(path string, paths []string) HandlerFunc {
-	return n.handlerFuncBuilder(path, n.BaseNode.findHandlerFunc(path, paths))
+	return n.wrapHandlerFunc(path, n.BaseNode.findHandlerFunc(path, paths))
 }

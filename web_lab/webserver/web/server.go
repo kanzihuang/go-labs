@@ -37,7 +37,9 @@ func NewServer(name string, builders ...FilterBuilder) Server {
 		Router: NewRouterBasedOnTree(),
 		Name:   name,
 		contextPool: sync.Pool{
-			New: NewContext,
+			New: func() any {
+				return NewContext()
+			},
 		},
 	}
 	var root Filter = server.ServeHTTPWithContext
