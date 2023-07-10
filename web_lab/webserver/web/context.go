@@ -12,8 +12,10 @@ type Context struct {
 	ParamMap map[string]string
 }
 
-func NewContext() any {
-	return &Context{}
+func NewContext() *Context {
+	return &Context{
+		ParamMap: map[string]string{},
+	}
 }
 
 func (c *Context) Reset(w http.ResponseWriter, r *http.Request) {
