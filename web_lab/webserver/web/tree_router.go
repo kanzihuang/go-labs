@@ -6,7 +6,7 @@ import (
 )
 
 type Node interface {
-	findChild(name string) Node
+	childOf(name string) Node
 	findHandlerFunc(path string, paths []string) HandlerFunc
 	isMatched(name string) bool
 	addChild(names []string, handlerFunc HandlerFunc)
@@ -119,7 +119,7 @@ func (n *BaseNode) setHandlerFunc(handlerFunc HandlerFunc) {
 	n.handlerFunc = handlerFunc
 }
 
-func (n *BaseNode) wrapHandlerFunc(path string, handlerFunc HandlerFunc) HandlerFunc {
+func (n *BaseNode) wrapHandlerFunc(_ string, handlerFunc HandlerFunc) HandlerFunc {
 	if handlerFunc != nil {
 		return handlerFunc
 	} else {
@@ -144,7 +144,7 @@ func (n *BaseNode) addNode(name string, handlerFunc HandlerFunc) Node {
 
 func (n *BaseNode) addChild(names []string, handlerFunc HandlerFunc) {
 	name := names[0]
-	node := n.findChild(name)
+	node := n.childOf(name)
 	if node == nil {
 		var f HandlerFunc
 		if len(names) <= 1 {
@@ -157,12 +157,12 @@ func (n *BaseNode) addChild(names []string, handlerFunc HandlerFunc) {
 	}
 }
 
-func (n *BaseNode) isMatched(name string) bool {
-	return n.name == "*" || n.name == name
+func (n *BaseNode) isMatched(path string) bool {
+	return n.name == path
 }
 
-func (n *BaseNode) findChild(name string) Node {
-	if child := n.children[name]; child != nil {
+func (n *BaseNode) childOf(path string) Node {
+	if child := n.children[path]; child != nil {
 		return child
 	} else if child := n.children[":"]; child != nil {
 		return child
@@ -175,7 +175,7 @@ func (n *BaseNode) findChild(name string) Node {
 func (n *BaseNode) findHandlerFunc(path string, paths []string) HandlerFunc {
 	childPath := paths[0]
 	var handlerFunc HandlerFunc
-	if matched := n.findChild(childPath); matched != nil {
+	if matched := n.childOf(childPath); matched != nil {
 		if len(paths) > 1 {
 			handlerFunc = matched.findHandlerFunc(childPath, paths[1:])
 		} else {

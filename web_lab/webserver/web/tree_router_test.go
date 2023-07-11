@@ -64,6 +64,7 @@ func handleConfig(*Context)      {}
 func handleConfigPort(*Context)  {}
 func handleStaticImage(*Context) {}
 func handleStaticAny(*Context)   {}
+func handleStaticSize(*Context)  {}
 func handleOrder(c *Context) {
 	c.ParamMap["handlerFunc"] = "handleOrder"
 }
@@ -99,7 +100,7 @@ func newTestCases() testCases {
 			handlerFunc: handleConfigPort,
 		},
 		{
-			pattern:     "/static/image",
+			pattern:     "/static/img",
 			handlerFunc: handleStaticImage,
 		},
 		{
@@ -119,6 +120,15 @@ func newTestCases() testCases {
 			pattern:     "/static/*",
 			path:        "/static/any",
 			handlerFunc: handleStaticAny,
+		},
+		{
+			path:        "/static/img/1.jpg",
+			handlerFunc: handleStaticAny,
+		},
+		{
+			pattern:     "/static/*/size",
+			path:        "/static/img/1.jpg/size",
+			handlerFunc: handleStaticSize,
 		},
 		// param route
 		{
@@ -188,13 +198,19 @@ func TestRouterBasedOnTree_Route(t *testing.T) {
 						name:        "static",
 						handlerFunc: nil,
 						children: map[string]Node{
-							"image": &BaseNode{
-								name:        "image",
+							"img": &BaseNode{
+								name:        "img",
 								handlerFunc: handleStaticImage,
 							},
 							"*": &BaseNode{
 								name:        "*",
 								handlerFunc: handleStaticAny,
+								children: map[string]Node{
+									"size": &BaseNode{
+										name:        "size",
+										handlerFunc: handleStaticSize,
+									},
+								},
 							},
 						},
 					},
