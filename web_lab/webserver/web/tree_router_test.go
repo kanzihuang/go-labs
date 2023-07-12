@@ -5,6 +5,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"reflect"
+	"regexp"
 	"runtime"
 	"testing"
 )
@@ -55,6 +56,7 @@ func equalNode(x, y Node) (string, bool) {
 	if msg, ok := equalNodeMap(x.getChildren(), y.getChildren()); !ok {
 		return "inconsistent node maps, " + msg, ok
 	}
+
 	return "", true
 }
 
@@ -63,6 +65,8 @@ func handleLogin(*Context)       {}
 func handleConfig(*Context)      {}
 func handleConfigPort(*Context)  {}
 func handleStaticImage(*Context) {}
+func handleRegexp(*Context)      {}
+func handleRegexpInfo(*Context)  {}
 func handleStaticAny(*Context)   {}
 func handleStaticSize(*Context)  {}
 func handleOrder(c *Context) {
@@ -115,20 +119,24 @@ func newTestCases() testCases {
 			path:        "/no_routing/no_routing",
 			handlerFunc: handleRoot,
 		},
-		// any route
+		// regexp route
 		{
-			pattern:     "/static/*",
-			path:        "/static/any",
-			handlerFunc: handleStaticAny,
+			pattern:     "/regexp_parent/~^reg[a-z]+",
+			path:        "/regexp_parent/regexp",
+			handlerFunc: handleRegexp,
 		},
 		{
-			path:        "/static/img/1.jpg",
-			handlerFunc: handleStaticAny,
+			path:        "/regexp_parent/reg-exp/child",
+			handlerFunc: handleRoot,
 		},
 		{
-			pattern:     "/static/*/size",
-			path:        "/static/img/1.jpg/size",
-			handlerFunc: handleStaticSize,
+			path:        "/regexp_parent/regexp/child",
+			handlerFunc: handleRegexp,
+		},
+		{
+			pattern:     "/regexp_parent/~^reg[a-z]+/info",
+			path:        "/regexp_parent/regexp/info",
+			handlerFunc: handleRegexpInfo,
 		},
 		// param route
 		{
@@ -148,6 +156,21 @@ func newTestCases() testCases {
 				"handlerFunc": "handleOrder",
 			},
 			handlerFunc: handleOrderStatus,
+		},
+		// any route
+		{
+			pattern:     "/static/*",
+			path:        "/static/any",
+			handlerFunc: handleStaticAny,
+		},
+		{
+			path:        "/static/img/1.jpg",
+			handlerFunc: handleStaticAny,
+		},
+		{
+			pattern:     "/static/*/size",
+			path:        "/static/img/1.jpg/size",
+			handlerFunc: handleStaticSize,
 		},
 	}
 	for _, tc := range tcs {
@@ -202,7 +225,9 @@ func TestRouterBasedOnTree_Route(t *testing.T) {
 								name:        "img",
 								handlerFunc: handleStaticImage,
 							},
-							"*": &BaseNode{
+						},
+						dynamicNode: &AnyNode{
+							BaseNode{
 								name:        "*",
 								handlerFunc: handleStaticAny,
 								children: map[string]Node{
@@ -230,6 +255,23 @@ func TestRouterBasedOnTree_Route(t *testing.T) {
 							},
 						},
 					},
+					"regexp_parent": &BaseNode{
+						name:        "regexp_parent",
+						handlerFunc: nil,
+						dynamicNode: &RegNode{
+							BaseNode: BaseNode{
+								name:        "~",
+								handlerFunc: handleRegexp,
+								children: map[string]Node{
+									"info": &BaseNode{
+										name:        "info",
+										handlerFunc: handleRegexpInfo,
+									},
+								},
+							},
+							validPath: regexp.MustCompile("^reg[a-z]+"),
+						},
+					},
 				},
 			},
 		},
@@ -245,7 +287,7 @@ func TestRouterBasedOnTree_FindHandlerFunc(t *testing.T) {
 	tcs := newTestCases()
 	tcs.registry(r)
 	for _, tc := range tcs {
-		if tc.pattern != "/order/:id" {
+		if tc.path != "/regexp_parent/regexp/info" {
 			continue
 		}
 		f := r.FindHandlerFunc(tc.method, tc.path)

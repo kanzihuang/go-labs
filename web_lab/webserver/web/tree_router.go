@@ -2,6 +2,7 @@ package web
 
 import (
 	"net/http"
+	"regexp"
 	"strings"
 )
 
@@ -65,12 +66,37 @@ func NewRouterBasedOnTree() *RouterBasedOnTree {
 	}
 }
 
+func NewNode(name string, handlerFunc HandlerFunc) Node {
+	var sign uint8
+	if len(name) > 0 {
+		sign = name[0]
+	}
+	switch sign {
+	case '~':
+		return NewRegNode(name[1:], handlerFunc)
+	case ':':
+		return NewParamNode(name[1:], handlerFunc)
+	case '*':
+		return NewAnyNode("*", handlerFunc)
+	default:
+		return NewBaseNode(name, handlerFunc)
+	}
+}
+
 type BaseNode struct {
 	name        string
 	handlerFunc HandlerFunc
 	children    map[string]Node
 	dynamicNode Node
 	dynamic     bool
+}
+
+func NewBaseNode(name string, handlerFunc HandlerFunc) Node {
+	return &BaseNode{
+		name:        name,
+		handlerFunc: handlerFunc,
+		children:    make(map[string]Node),
+	}
 }
 
 func (n *BaseNode) isDynamic() bool {
@@ -89,32 +115,48 @@ func (n *BaseNode) getName() string {
 	return n.name
 }
 
-func NewBaseNode(name string, handlerFunc HandlerFunc) Node {
-	return &BaseNode{
-		name:        name,
-		handlerFunc: handlerFunc,
-		children:    make(map[string]Node),
+type RegNode struct {
+	BaseNode
+	validPath *regexp.Regexp
+}
+
+func NewRegNode(name string, handlerFunc HandlerFunc) Node {
+	return &RegNode{
+		BaseNode: BaseNode{
+			name:        "~",
+			handlerFunc: handlerFunc,
+			children:    make(map[string]Node),
+			dynamic:     true,
+		},
+		validPath: regexp.MustCompile(name),
 	}
+}
+
+func (n *RegNode) isMatched(path string) bool {
+	return n.validPath.MatchString(path)
+}
+
+type AnyNode struct {
+	BaseNode
+}
+
+func NewAnyNode(name string, handlerFunc HandlerFunc) Node {
+	return &AnyNode{
+		BaseNode: BaseNode{
+			name:        name,
+			handlerFunc: handlerFunc,
+			children:    make(map[string]Node),
+			dynamic:     true,
+		},
+	}
+}
+
+func (n *AnyNode) isMatched(path string) bool {
+	return true
 }
 
 type ParamNode struct {
 	BaseNode
-}
-
-func NewNode(name string, handlerFunc HandlerFunc) Node {
-	var sign uint8
-	if len(name) > 0 {
-		sign = name[0]
-	}
-	switch sign {
-	case ':':
-		return NewParamNode(name[1:], handlerFunc)
-	}
-	return &BaseNode{
-		name:        name,
-		handlerFunc: handlerFunc,
-		children:    make(map[string]Node),
-	}
 }
 
 func NewParamNode(name string, handlerFunc HandlerFunc) Node {
@@ -126,6 +168,10 @@ func NewParamNode(name string, handlerFunc HandlerFunc) Node {
 			dynamic:     true,
 		},
 	}
+}
+
+func (n *ParamNode) isMatched(path string) bool {
+	return true
 }
 
 func (n *ParamNode) wrapHandlerFunc(path string, handlerFunc HandlerFunc) HandlerFunc {
@@ -168,8 +214,8 @@ func (n *BaseNode) wrapHandlerFunc(_ string, handlerFunc HandlerFunc) HandlerFun
 
 func (n *BaseNode) addChild(names []string, handlerFunc HandlerFunc) {
 	name := names[0]
-	child := n.childOf(name)
-	if child == nil {
+	child, ok := n.children[name]
+	if !ok {
 		var f HandlerFunc
 		if len(names) <= 1 {
 			f = handlerFunc
@@ -194,11 +240,15 @@ func (n *BaseNode) isMatched(path string) bool {
 func (n *BaseNode) childOf(path string) Node {
 	if child := n.children[path]; child != nil {
 		return child
-	} else if child := n.children[":"]; child != nil {
-		return child
-	} else if child := n.children["*"]; child != nil {
-		return child
+	} else if n.dynamicNode != nil && n.dynamicNode.isMatched(path) {
+		return n.dynamicNode
 	}
+	//else if child := n.children[":"]; child != nil {
+	//	return child
+	//} else if child := n.children["*"]; child != nil {
+	//	return child
+	//}
+
 	return nil
 }
 
