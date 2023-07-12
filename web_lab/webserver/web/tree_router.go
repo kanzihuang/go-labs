@@ -15,6 +15,7 @@ type Node interface {
 	setHandlerFunc(handlerFunc HandlerFunc)
 	getName() string
 	getChildren() map[string]Node
+	isDynamic() bool
 }
 
 var supportMethods = [4]string{
@@ -68,6 +69,12 @@ type BaseNode struct {
 	name        string
 	handlerFunc HandlerFunc
 	children    map[string]Node
+	dynamicNode Node
+	dynamic     bool
+}
+
+func (n *BaseNode) isDynamic() bool {
+	return n.dynamic
 }
 
 func (n *BaseNode) getChildren() map[string]Node {
@@ -94,12 +101,29 @@ type ParamNode struct {
 	BaseNode
 }
 
+func NewNode(name string, handlerFunc HandlerFunc) Node {
+	var sign uint8
+	if len(name) > 0 {
+		sign = name[0]
+	}
+	switch sign {
+	case ':':
+		return NewParamNode(name[1:], handlerFunc)
+	}
+	return &BaseNode{
+		name:        name,
+		handlerFunc: handlerFunc,
+		children:    make(map[string]Node),
+	}
+}
+
 func NewParamNode(name string, handlerFunc HandlerFunc) Node {
 	return &ParamNode{
 		BaseNode: BaseNode{
 			name:        name,
 			handlerFunc: handlerFunc,
 			children:    make(map[string]Node),
+			dynamic:     true,
 		},
 	}
 }
@@ -127,33 +151,39 @@ func (n *BaseNode) wrapHandlerFunc(_ string, handlerFunc HandlerFunc) HandlerFun
 	}
 }
 
-func (n *BaseNode) addNode(name string, handlerFunc HandlerFunc) Node {
-	key := name
-	if strings.HasPrefix(key, ":") {
-		key = ":"
-	}
-	var node Node
-	if key == ":" {
-		node = NewParamNode(name[1:], handlerFunc)
-	} else {
-		node = NewBaseNode(name, handlerFunc)
-	}
-	n.children[key] = node
-	return node
-}
+//func (n *BaseNode) addNode(name string, handlerFunc HandlerFunc) Node {
+//	key := name
+//	if strings.HasPrefix(key, ":") {
+//		key = ":"
+//	}
+//	var node Node
+//	if key == ":" {
+//		node = NewParamNode(name[1:], handlerFunc)
+//	} else {
+//		node = NewBaseNode(name, handlerFunc)
+//	}
+//	n.children[key] = node
+//	return node
+//}
 
 func (n *BaseNode) addChild(names []string, handlerFunc HandlerFunc) {
 	name := names[0]
-	node := n.childOf(name)
-	if node == nil {
+	child := n.childOf(name)
+	if child == nil {
 		var f HandlerFunc
 		if len(names) <= 1 {
 			f = handlerFunc
 		}
-		node = n.addNode(name, f)
+		//child = n.addNode(name, f)
+		child = NewNode(name, f)
+		if !child.isDynamic() {
+			n.children[child.getName()] = child
+		} else if n.dynamicNode == nil {
+			n.dynamicNode = child
+		}
 	}
 	if len(names) > 1 {
-		node.addChild(names[1:], handlerFunc)
+		child.addChild(names[1:], handlerFunc)
 	}
 }
 
@@ -183,6 +213,10 @@ func (n *BaseNode) findHandlerFunc(path string, paths []string) HandlerFunc {
 		}
 	}
 	return n.wrapHandlerFunc(path, handlerFunc)
+}
+
+func (n *BaseNode) panicIfExist(paths []string) {
+	//todo
 }
 
 func (n *ParamNode) findHandlerFunc(path string, paths []string) HandlerFunc {

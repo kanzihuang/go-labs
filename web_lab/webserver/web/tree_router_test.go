@@ -217,16 +217,14 @@ func TestRouterBasedOnTree_Route(t *testing.T) {
 					"order": &BaseNode{
 						name:        "order",
 						handlerFunc: nil,
-						children: map[string]Node{
-							":": &ParamNode{
-								BaseNode{
-									name:        "id",
-									handlerFunc: handleOrder,
-									children: map[string]Node{
-										"status": &BaseNode{
-											name:        "status",
-											handlerFunc: handleOrderStatus,
-										},
+						dynamicNode: &ParamNode{
+							BaseNode{
+								name:        "id",
+								handlerFunc: handleOrder,
+								children: map[string]Node{
+									"status": &BaseNode{
+										name:        "status",
+										handlerFunc: handleOrderStatus,
 									},
 								},
 							},
