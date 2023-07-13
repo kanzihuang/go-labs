@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -17,6 +18,7 @@ type Node interface {
 	getName() string
 	getChildren() map[string]Node
 	isDynamic() bool
+	getDynamicNode() Node
 }
 
 var supportMethods = [4]string{
@@ -89,6 +91,10 @@ type BaseNode struct {
 	children    map[string]Node
 	dynamicNode Node
 	dynamic     bool
+}
+
+func (n *BaseNode) getDynamicNode() Node {
+	return n.dynamicNode
 }
 
 func NewBaseNode(name string, handlerFunc HandlerFunc) Node {
@@ -222,6 +228,19 @@ func (n *BaseNode) addChild(names []string, handlerFunc HandlerFunc) {
 		}
 		//child = n.addNode(name, f)
 		child = NewNode(name, f)
+		if child.isDynamic() {
+			if n.dynamicNode != nil {
+				if child.getName() == n.dynamicNode.getName() {
+					child = n.dynamicNode
+				} else {
+					panic(fmt.Errorf("duplicate registered routes: %s/%s", n.getName(), child.getName()))
+				}
+			} else {
+				n.dynamicNode = child
+			}
+		} else {
+			n.children[child.getName()] = child
+		}
 		if !child.isDynamic() {
 			n.children[child.getName()] = child
 		} else if n.dynamicNode == nil {

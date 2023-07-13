@@ -56,7 +56,9 @@ func equalNode(x, y Node) (string, bool) {
 	if msg, ok := equalNodeMap(x.getChildren(), y.getChildren()); !ok {
 		return "inconsistent node maps, " + msg, ok
 	}
-
+	if msg, ok := equalNode(x.getDynamicNode(), y.getDynamicNode()); !ok {
+		return "inconsistent dynamic node, " + msg, ok
+	}
 	return "", true
 }
 
@@ -73,7 +75,7 @@ func handleOrder(c *Context) {
 	c.ParamMap["handlerFunc"] = "handleOrder"
 }
 func handleOrderStatus(c *Context) {
-	c.ParamMap["handlerFuncStatus"] = "handleOrderStatus"
+	c.ParamMap["handlerFunc"] = "handleOrderStatus"
 }
 
 type testCases []*struct {
@@ -153,7 +155,7 @@ func newTestCases() testCases {
 			path:    "/order/3721/status",
 			params: map[string]string{
 				"id":          "3721",
-				"handlerFunc": "handleOrder",
+				"handlerFunc": "handleOrderStatus",
 			},
 			handlerFunc: handleOrderStatus,
 		},
@@ -164,12 +166,12 @@ func newTestCases() testCases {
 			handlerFunc: handleStaticAny,
 		},
 		{
-			path:        "/static/img/1.jpg",
+			path:        "/static/any/any/1.jpg",
 			handlerFunc: handleStaticAny,
 		},
 		{
 			pattern:     "/static/*/size",
-			path:        "/static/img/1.jpg/size",
+			path:        "/static/any/size",
 			handlerFunc: handleStaticSize,
 		},
 	}
@@ -186,6 +188,10 @@ func newTestCases() testCases {
 
 func (tcs testCases) registry(router *RouterBasedOnTree) {
 	for _, tc := range tcs {
+		//if !strings.HasPrefix(tc.pattern, "/regexp_parent/~^reg[a-z]+") {
+		//	//todo comment this code
+		//	continue
+		//}
 		if tc.pattern != "" {
 			router.Route(tc.method, tc.pattern, tc.handlerFunc)
 		}
@@ -287,9 +293,9 @@ func TestRouterBasedOnTree_FindHandlerFunc(t *testing.T) {
 	tcs := newTestCases()
 	tcs.registry(r)
 	for _, tc := range tcs {
-		if tc.path != "/regexp_parent/regexp/info" {
-			continue
-		}
+		//if tc.path != "/regexp_parent/regexp/info" {
+		//	continue
+		//}
 		f := r.FindHandlerFunc(tc.method, tc.path)
 		assertEqualHandlerFunc(t, tc.handlerFunc, f, tc.path, tc.params)
 	}
@@ -302,6 +308,6 @@ func assertEqualHandlerFunc(t *testing.T, expected, actual HandlerFunc, path str
 	} else {
 		c := NewContext()
 		actual(c)
-		assert.Equal(t, params, c.ParamMap)
+		assert.Equal(t, params, c.ParamMap, "path: %s", path)
 	}
 }
