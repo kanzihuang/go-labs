@@ -1,4 +1,4 @@
-package buildin_labs
+package buildin
 
 import (
 	"testing"

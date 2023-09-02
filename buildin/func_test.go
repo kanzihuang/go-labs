@@ -1,4 +1,4 @@
-package buildin_labs
+package buildin
 
 import (
 	"github.com/stretchr/testify/assert"

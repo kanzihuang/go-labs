@@ -1,4 +1,4 @@
-package sort_lab
+package sort
 
 import (
 	"math/rand"

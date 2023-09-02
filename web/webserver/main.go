@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"go-labs/web_lab/webserver/web"
+	"go-labs/web/webserver/web"
 	"io"
 	"net/http"
 	"time"

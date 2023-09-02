@@ -1,4 +1,4 @@
-package encoding_lab
+package encoding
 
 import (
 	"encoding/json"

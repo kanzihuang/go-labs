@@ -1,4 +1,4 @@
-package sort_lab
+package sort
 
 func insertionSort(arr []int) {
 	for i := 1; i < len(arr); i++ {

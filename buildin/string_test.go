@@ -1,7 +1,9 @@
-package buildin_labs
+package buildin
 
 import (
+	"github.com/stretchr/testify/assert"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestStringLen(t *testing.T) {
@@ -32,5 +34,14 @@ func TestStringModify(t *testing.T) {
 	}
 	if got, want := s, "Hello"; got != want {
 		t.Errorf("got: %q, want: %q", got, want)
+	}
+}
+
+func TestStringRune(t *testing.T) {
+	s := ":中国:"
+	b := []byte(s)
+	want := []bool{true, true, false, false, true, false, false, true}
+	for i, _ := range b {
+		assert.Equal(t, want[i], utf8.Valid(b[i:]))
 	}
 }
