@@ -1,12 +1,14 @@
 package web
 
 import (
+	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 )
 
 type Node interface {
-	findChild(name string) Node
+	childOf(name string) Node
 	findHandlerFunc(path string, paths []string) HandlerFunc
 	isMatched(name string) bool
 	addChild(names []string, handlerFunc HandlerFunc)
@@ -15,6 +17,8 @@ type Node interface {
 	setHandlerFunc(handlerFunc HandlerFunc)
 	getName() string
 	getChildren() map[string]Node
+	isDynamic() bool
+	getDynamicNode() Node
 }
 
 var supportMethods = [4]string{
@@ -64,10 +68,45 @@ func NewRouterBasedOnTree() *RouterBasedOnTree {
 	}
 }
 
+func NewNode(name string, handlerFunc HandlerFunc) Node {
+	var sign uint8
+	if len(name) > 0 {
+		sign = name[0]
+	}
+	switch sign {
+	case '~':
+		return NewRegNode(name[1:], handlerFunc)
+	case ':':
+		return NewParamNode(name[1:], handlerFunc)
+	case '*':
+		return NewAnyNode("*", handlerFunc)
+	default:
+		return NewBaseNode(name, handlerFunc)
+	}
+}
+
 type BaseNode struct {
 	name        string
 	handlerFunc HandlerFunc
 	children    map[string]Node
+	dynamicNode Node
+	dynamic     bool
+}
+
+func (n *BaseNode) getDynamicNode() Node {
+	return n.dynamicNode
+}
+
+func NewBaseNode(name string, handlerFunc HandlerFunc) Node {
+	return &BaseNode{
+		name:        name,
+		handlerFunc: handlerFunc,
+		children:    make(map[string]Node),
+	}
+}
+
+func (n *BaseNode) isDynamic() bool {
+	return n.dynamic
 }
 
 func (n *BaseNode) getChildren() map[string]Node {
@@ -82,12 +121,44 @@ func (n *BaseNode) getName() string {
 	return n.name
 }
 
-func NewBaseNode(name string, handlerFunc HandlerFunc) Node {
-	return &BaseNode{
-		name:        name,
-		handlerFunc: handlerFunc,
-		children:    make(map[string]Node),
+type RegNode struct {
+	BaseNode
+	validPath *regexp.Regexp
+}
+
+func NewRegNode(name string, handlerFunc HandlerFunc) Node {
+	return &RegNode{
+		BaseNode: BaseNode{
+			name:        "~",
+			handlerFunc: handlerFunc,
+			children:    make(map[string]Node),
+			dynamic:     true,
+		},
+		validPath: regexp.MustCompile(name),
 	}
+}
+
+func (n *RegNode) isMatched(path string) bool {
+	return n.validPath.MatchString(path)
+}
+
+type AnyNode struct {
+	BaseNode
+}
+
+func NewAnyNode(name string, handlerFunc HandlerFunc) Node {
+	return &AnyNode{
+		BaseNode: BaseNode{
+			name:        name,
+			handlerFunc: handlerFunc,
+			children:    make(map[string]Node),
+			dynamic:     true,
+		},
+	}
+}
+
+func (n *AnyNode) isMatched(path string) bool {
+	return true
 }
 
 type ParamNode struct {
@@ -100,8 +171,13 @@ func NewParamNode(name string, handlerFunc HandlerFunc) Node {
 			name:        name,
 			handlerFunc: handlerFunc,
 			children:    make(map[string]Node),
+			dynamic:     true,
 		},
 	}
+}
+
+func (n *ParamNode) isMatched(path string) bool {
+	return true
 }
 
 func (n *ParamNode) wrapHandlerFunc(path string, handlerFunc HandlerFunc) HandlerFunc {
@@ -119,7 +195,7 @@ func (n *BaseNode) setHandlerFunc(handlerFunc HandlerFunc) {
 	n.handlerFunc = handlerFunc
 }
 
-func (n *BaseNode) wrapHandlerFunc(path string, handlerFunc HandlerFunc) HandlerFunc {
+func (n *BaseNode) wrapHandlerFunc(_ string, handlerFunc HandlerFunc) HandlerFunc {
 	if handlerFunc != nil {
 		return handlerFunc
 	} else {
@@ -127,55 +203,78 @@ func (n *BaseNode) wrapHandlerFunc(path string, handlerFunc HandlerFunc) Handler
 	}
 }
 
-func (n *BaseNode) addNode(name string, handlerFunc HandlerFunc) Node {
-	key := name
-	if strings.HasPrefix(key, ":") {
-		key = ":"
-	}
-	var node Node
-	if key == ":" {
-		node = NewParamNode(name[1:], handlerFunc)
-	} else {
-		node = NewBaseNode(name, handlerFunc)
-	}
-	n.children[key] = node
-	return node
-}
+//func (n *BaseNode) addNode(name string, handlerFunc HandlerFunc) Node {
+//	key := name
+//	if strings.HasPrefix(key, ":") {
+//		key = ":"
+//	}
+//	var node Node
+//	if key == ":" {
+//		node = NewParamNode(name[1:], handlerFunc)
+//	} else {
+//		node = NewBaseNode(name, handlerFunc)
+//	}
+//	n.children[key] = node
+//	return node
+//}
 
 func (n *BaseNode) addChild(names []string, handlerFunc HandlerFunc) {
 	name := names[0]
-	node := n.findChild(name)
-	if node == nil {
+	child, ok := n.children[name]
+	if !ok {
 		var f HandlerFunc
 		if len(names) <= 1 {
 			f = handlerFunc
 		}
-		node = n.addNode(name, f)
+		//child = n.addNode(name, f)
+		child = NewNode(name, f)
+		if child.isDynamic() {
+			if n.dynamicNode != nil {
+				if child.getName() == n.dynamicNode.getName() {
+					child = n.dynamicNode
+				} else {
+					panic(fmt.Errorf("duplicate registered routes: %s/%s", n.getName(), child.getName()))
+				}
+			} else {
+				n.dynamicNode = child
+			}
+		} else {
+			n.children[child.getName()] = child
+		}
+		if !child.isDynamic() {
+			n.children[child.getName()] = child
+		} else if n.dynamicNode == nil {
+			n.dynamicNode = child
+		}
 	}
 	if len(names) > 1 {
-		node.addChild(names[1:], handlerFunc)
+		child.addChild(names[1:], handlerFunc)
 	}
 }
 
-func (n *BaseNode) isMatched(name string) bool {
-	return n.name == "*" || n.name == name
+func (n *BaseNode) isMatched(path string) bool {
+	return n.name == path
 }
 
-func (n *BaseNode) findChild(name string) Node {
-	if child := n.children[name]; child != nil {
+func (n *BaseNode) childOf(path string) Node {
+	if child := n.children[path]; child != nil {
 		return child
-	} else if child := n.children[":"]; child != nil {
-		return child
-	} else if child := n.children["*"]; child != nil {
-		return child
+	} else if n.dynamicNode != nil && n.dynamicNode.isMatched(path) {
+		return n.dynamicNode
 	}
+	//else if child := n.children[":"]; child != nil {
+	//	return child
+	//} else if child := n.children["*"]; child != nil {
+	//	return child
+	//}
+
 	return nil
 }
 
 func (n *BaseNode) findHandlerFunc(path string, paths []string) HandlerFunc {
 	childPath := paths[0]
 	var handlerFunc HandlerFunc
-	if matched := n.findChild(childPath); matched != nil {
+	if matched := n.childOf(childPath); matched != nil {
 		if len(paths) > 1 {
 			handlerFunc = matched.findHandlerFunc(childPath, paths[1:])
 		} else {
@@ -183,6 +282,10 @@ func (n *BaseNode) findHandlerFunc(path string, paths []string) HandlerFunc {
 		}
 	}
 	return n.wrapHandlerFunc(path, handlerFunc)
+}
+
+func (n *BaseNode) panicIfExist(paths []string) {
+	//todo
 }
 
 func (n *ParamNode) findHandlerFunc(path string, paths []string) HandlerFunc {

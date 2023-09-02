@@ -5,6 +5,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"reflect"
+	"regexp"
 	"runtime"
 	"testing"
 )
@@ -55,6 +56,9 @@ func equalNode(x, y Node) (string, bool) {
 	if msg, ok := equalNodeMap(x.getChildren(), y.getChildren()); !ok {
 		return "inconsistent node maps, " + msg, ok
 	}
+	if msg, ok := equalNode(x.getDynamicNode(), y.getDynamicNode()); !ok {
+		return "inconsistent dynamic node, " + msg, ok
+	}
 	return "", true
 }
 
@@ -63,12 +67,15 @@ func handleLogin(*Context)       {}
 func handleConfig(*Context)      {}
 func handleConfigPort(*Context)  {}
 func handleStaticImage(*Context) {}
+func handleRegexp(*Context)      {}
+func handleRegexpInfo(*Context)  {}
 func handleStaticAny(*Context)   {}
+func handleStaticSize(*Context)  {}
 func handleOrder(c *Context) {
 	c.ParamMap["handlerFunc"] = "handleOrder"
 }
 func handleOrderStatus(c *Context) {
-	c.ParamMap["handlerFuncStatus"] = "handleOrderStatus"
+	c.ParamMap["handlerFunc"] = "handleOrderStatus"
 }
 
 type testCases []*struct {
@@ -99,7 +106,7 @@ func newTestCases() testCases {
 			handlerFunc: handleConfigPort,
 		},
 		{
-			pattern:     "/static/image",
+			pattern:     "/static/img",
 			handlerFunc: handleStaticImage,
 		},
 		{
@@ -114,11 +121,24 @@ func newTestCases() testCases {
 			path:        "/no_routing/no_routing",
 			handlerFunc: handleRoot,
 		},
-		// any route
+		// regexp route
 		{
-			pattern:     "/static/*",
-			path:        "/static/any",
-			handlerFunc: handleStaticAny,
+			pattern:     "/regexp_parent/~^reg[a-z]+",
+			path:        "/regexp_parent/regexp",
+			handlerFunc: handleRegexp,
+		},
+		{
+			path:        "/regexp_parent/reg-exp/child",
+			handlerFunc: handleRoot,
+		},
+		{
+			path:        "/regexp_parent/regexp/child",
+			handlerFunc: handleRegexp,
+		},
+		{
+			pattern:     "/regexp_parent/~^reg[a-z]+/info",
+			path:        "/regexp_parent/regexp/info",
+			handlerFunc: handleRegexpInfo,
 		},
 		// param route
 		{
@@ -135,9 +155,24 @@ func newTestCases() testCases {
 			path:    "/order/3721/status",
 			params: map[string]string{
 				"id":          "3721",
-				"handlerFunc": "handleOrder",
+				"handlerFunc": "handleOrderStatus",
 			},
 			handlerFunc: handleOrderStatus,
+		},
+		// any route
+		{
+			pattern:     "/static/*",
+			path:        "/static/any",
+			handlerFunc: handleStaticAny,
+		},
+		{
+			path:        "/static/any/any/1.jpg",
+			handlerFunc: handleStaticAny,
+		},
+		{
+			pattern:     "/static/*/size",
+			path:        "/static/any/size",
+			handlerFunc: handleStaticSize,
 		},
 	}
 	for _, tc := range tcs {
@@ -153,6 +188,10 @@ func newTestCases() testCases {
 
 func (tcs testCases) registry(router *RouterBasedOnTree) {
 	for _, tc := range tcs {
+		//if !strings.HasPrefix(tc.pattern, "/regexp_parent/~^reg[a-z]+") {
+		//	//todo comment this code
+		//	continue
+		//}
 		if tc.pattern != "" {
 			router.Route(tc.method, tc.pattern, tc.handlerFunc)
 		}
@@ -188,32 +227,55 @@ func TestRouterBasedOnTree_Route(t *testing.T) {
 						name:        "static",
 						handlerFunc: nil,
 						children: map[string]Node{
-							"image": &BaseNode{
-								name:        "image",
+							"img": &BaseNode{
+								name:        "img",
 								handlerFunc: handleStaticImage,
 							},
-							"*": &BaseNode{
+						},
+						dynamicNode: &AnyNode{
+							BaseNode{
 								name:        "*",
 								handlerFunc: handleStaticAny,
+								children: map[string]Node{
+									"size": &BaseNode{
+										name:        "size",
+										handlerFunc: handleStaticSize,
+									},
+								},
 							},
 						},
 					},
 					"order": &BaseNode{
 						name:        "order",
 						handlerFunc: nil,
-						children: map[string]Node{
-							":": &ParamNode{
-								BaseNode{
-									name:        "id",
-									handlerFunc: handleOrder,
-									children: map[string]Node{
-										"status": &BaseNode{
-											name:        "status",
-											handlerFunc: handleOrderStatus,
-										},
+						dynamicNode: &ParamNode{
+							BaseNode{
+								name:        "id",
+								handlerFunc: handleOrder,
+								children: map[string]Node{
+									"status": &BaseNode{
+										name:        "status",
+										handlerFunc: handleOrderStatus,
 									},
 								},
 							},
+						},
+					},
+					"regexp_parent": &BaseNode{
+						name:        "regexp_parent",
+						handlerFunc: nil,
+						dynamicNode: &RegNode{
+							BaseNode: BaseNode{
+								name:        "~",
+								handlerFunc: handleRegexp,
+								children: map[string]Node{
+									"info": &BaseNode{
+										name:        "info",
+										handlerFunc: handleRegexpInfo,
+									},
+								},
+							},
+							validPath: regexp.MustCompile("^reg[a-z]+"),
 						},
 					},
 				},
@@ -231,9 +293,9 @@ func TestRouterBasedOnTree_FindHandlerFunc(t *testing.T) {
 	tcs := newTestCases()
 	tcs.registry(r)
 	for _, tc := range tcs {
-		if tc.pattern != "/order/:id" {
-			continue
-		}
+		//if tc.path != "/regexp_parent/regexp/info" {
+		//	continue
+		//}
 		f := r.FindHandlerFunc(tc.method, tc.path)
 		assertEqualHandlerFunc(t, tc.handlerFunc, f, tc.path, tc.params)
 	}
@@ -246,6 +308,6 @@ func assertEqualHandlerFunc(t *testing.T, expected, actual HandlerFunc, path str
 	} else {
 		c := NewContext()
 		actual(c)
-		assert.Equal(t, params, c.ParamMap)
+		assert.Equal(t, params, c.ParamMap, "path: %s", path)
 	}
 }
