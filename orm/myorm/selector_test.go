@@ -1,6 +1,7 @@
 package myorm
 
 import (
+	"errors"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -19,27 +20,27 @@ func TestSelector_Build(t *testing.T) {
 	}{
 		{
 			name:      "base",
-			q:         Selector[TestModel]{},
+			q:         NewSelector[TestModel](),
 			wantQuery: &Query{SQL: "SELECT * FROM `TestModel`;"},
 		},
 		{
 			name:      "with FROM",
-			q:         Selector[TestModel]{}.From("test_model"),
+			q:         NewSelector[TestModel]().From("test_model"),
 			wantQuery: &Query{SQL: "SELECT * FROM test_model;"},
 		},
 		{
 			name:      "empty FROM",
-			q:         Selector[TestModel]{}.From(""),
+			q:         NewSelector[TestModel]().From(""),
 			wantQuery: &Query{SQL: "SELECT * FROM `TestModel`;"},
 		},
 		{
 			name:      "with db",
-			q:         Selector[TestModel]{}.From("test_db.test_model"),
+			q:         NewSelector[TestModel]().From("test_db.test_model"),
 			wantQuery: &Query{SQL: "SELECT * FROM test_db.test_model;"},
 		},
 		{
 			name: "with where id",
-			q: Selector[TestModel]{}.Where(Predicate{
+			q: NewSelector[TestModel]().Where(Predicate{
 				left:    C("id"),
 				operate: OperateEqual,
 				right:   Value{},
@@ -51,7 +52,7 @@ func TestSelector_Build(t *testing.T) {
 		},
 		{
 			name: "with where id and name",
-			q: Selector[TestModel]{}.Where(
+			q: NewSelector[TestModel]().Where(
 				Predicate{
 					left: Predicate{
 						C("id"),
@@ -84,7 +85,7 @@ func TestSelector_Build(t *testing.T) {
 		},
 		{
 			name: "with where not name",
-			q: Selector[TestModel]{}.Where(
+			q: NewSelector[TestModel]().Where(
 				Predicate{
 					operate: OperateNot,
 					right: Predicate{
@@ -107,13 +108,24 @@ func TestSelector_Build(t *testing.T) {
 				Params: []any{1, "a", "b"},
 			},
 		},
+		{
+			name: "with where invalid column",
+			q: NewSelector[TestModel]().Where(Predicate{
+				left:    C("invalid"),
+				operate: OperateEqual,
+				right:   Value{},
+			}, []any{1}),
+			wantErr: errors.New("invalid column"),
+		},
 	}
 	for _, tc := range testCases {
-		query, err := tc.q.Build()
-		assert.Equal(t, tc.wantErr, err)
-		if err != nil {
-			return
-		}
-		assert.Equal(t, tc.wantQuery, query)
+		t.Run(tc.name, func(t *testing.T) {
+			query, err := tc.q.Build()
+			assert.Equal(t, tc.wantErr, err)
+			if err != nil {
+				return
+			}
+			assert.Equal(t, tc.wantQuery, query)
+		})
 	}
 }

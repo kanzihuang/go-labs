@@ -83,6 +83,10 @@ type Selector[T any] struct {
 	args      []any
 }
 
+func NewSelector[T any]() *Selector[T] {
+	return &Selector[T]{}
+}
+
 func (s Selector[T]) From(tableName string) QueryBuilder {
 	s.tableName = tableName
 	return s
