@@ -1,6 +1,7 @@
-package buildin
+package builtin
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"unicode/utf8"
@@ -43,5 +44,16 @@ func TestStringRune(t *testing.T) {
 	want := []bool{true, true, false, false, true, false, false, true}
 	for i, _ := range b {
 		assert.Equal(t, want[i], utf8.Valid(b[i:]))
+	}
+}
+
+func TestStringNonPrintable(t *testing.T) {
+	want := "\x01"
+	got := fmt.Sprintf("%s", want)
+	if len(got) != 1 {
+		t.Errorf("got: %d, want: %d", len(got), len(want))
+	}
+	if got != want {
+		t.Errorf("got: %q, want: %q", got, want)
 	}
 }

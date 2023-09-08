@@ -1,4 +1,4 @@
-package buildin
+package builtin
 
 import (
 	"testing"
@@ -10,14 +10,9 @@ func TestSelectNil(t *testing.T) {
 	select {
 	case <-c:
 		t.Error("本处不应执行")
-	default:
+	case <-time.After(time.Millisecond * 100):
+		t.Logf("Timeout")
 	}
-	// all goroutines are asleep - deadlock!
-	select {
-	case <-c:
-		t.Error("本处不应执行")
-	}
-	t.Error("本处不应执行")
 }
 
 func TestSelectTimeout(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 
 const (
 	addr = "backend.123sou.cn:389"
-	user = "uid=java1,dc=devopsman,dc=cn"
+	dc   = "dc=eryajf,dc=net"
 )
 
 func main() {
@@ -17,37 +17,84 @@ func main() {
 		log.Fatal(err)
 	}
 	defer l.Close()
-
-	err = l.Bind("cn=admin,dc=devopsman,dc=cn", "admin123")
+	admin := fmt.Sprintf("cn=%s,%s", "admin", dc)
+	err = l.Bind(admin, "123456")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("admin登录失败：", err)
 	}
-	delUser(l, user)
-	password := addUser(l, user)
-	checkUser(user, password)
+
+	user := "p"
+	password := "123456"
+	addUser(l, dc, user, password)
+	getAllUsers(l, dc)
+	getUser(l, dc, user)
+	checkUser(dc, user, password)
+	delUser(l, dc, user)
 }
 
-func checkUser(user, password string) bool {
+func getUser(l *ldap.Conn, dc, uid string) string {
+	searchRequest := ldap.NewSearchRequest(dc,
+		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+		fmt.Sprintf("(&(objectClass=organizationalPerson)(uid=%s))", ldap.EscapeFilter(uid)),
+		[]string{"dn", "uid", "cn", "mail", "telephone"},
+		nil)
+
+	sr, err := l.Search(searchRequest)
+	if err != nil {
+		fmt.Println("获取用户出错：", err)
+	}
+
+	if len(sr.Entries) != 1 {
+		fmt.Println("用户不存在或返回条目过多")
+		return ""
+	}
+	for _, entry := range sr.Entries {
+		email := entry.GetAttributeValue("mail")
+		fmt.Printf("email: %s\n", email)
+	}
+	return sr.Entries[0].GetAttributeValue("mail")
+}
+
+func getAllUsers(l *ldap.Conn, dc string) []string {
+	searchRequest := ldap.NewSearchRequest(dc,
+		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+		fmt.Sprintf("(&(objectClass=organizationalPerson))"),
+		[]string{"uid", "cn", "mail", "telephone"},
+		nil)
+
+	sr, err := l.Search(searchRequest)
+	if err != nil {
+		fmt.Println("获取用户出错", err)
+	}
+
+	for _, entry := range sr.Entries {
+		email := entry.GetAttributeValue("mail")
+		fmt.Printf("email: %s\n", email)
+	}
+	//return sr.Entries[0].GetAttributeValue("mail")
+	return []string{}
+}
+
+func checkUser(dc, uid, password string) bool {
 	l, err := ldap.Dial("tcp", addr)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("LDAP连接错误：", err)
 	}
 	defer l.Close()
 
-	_, err = l.SimpleBind(&ldap.SimpleBindRequest{
-		Username: user,
+	if _, err := l.SimpleBind(&ldap.SimpleBindRequest{
+		Username: fmt.Sprintf("uid=%s,ou=people,%s", uid, dc),
 		Password: password,
-	})
-	if err != nil {
+	}); err != nil {
 		fmt.Println("用户验证失败：", err)
 		return false
 	}
 	return true
 }
 
-func delUser(l *ldap.Conn, user string) {
+func delUser(l *ldap.Conn, dc, uid string) {
 	err := l.Del(&ldap.DelRequest{
-		DN:       user,
+		DN:       fmt.Sprintf("uid=%s,%s", uid, dc),
 		Controls: nil,
 	})
 	if err != nil {
@@ -56,31 +103,33 @@ func delUser(l *ldap.Conn, user string) {
 	}
 }
 
-func addUser(l *ldap.Conn, user string) string {
+func addUser(l *ldap.Conn, uc, uid, password string) {
 	//创建新用户
+	user := fmt.Sprintf("uid=%s,%s", uid, dc)
 	addResponse := ldap.NewAddRequest(user, []ldap.Control{})
-	addResponse.Attribute("cn", []string{"java1"})
-	addResponse.Attribute("sn", []string{"java1"})
-	addResponse.Attribute("uid", []string{"java1"})
-	addResponse.Attribute("homeDirectory", []string{"/home/java1"})
-	addResponse.Attribute("loginShell", []string{"java1"})
+	addResponse.Attribute("cn", []string{uid})
+	addResponse.Attribute("sn", []string{uid})
+	addResponse.Attribute("uid", []string{uid})
+	addResponse.Attribute("homeDirectory", []string{fmt.Sprintf("/home/%s", uid)})
+	addResponse.Attribute("loginShell", []string{uid})
 	addResponse.Attribute("gidNumber", []string{"0"})
 	addResponse.Attribute("uidNumber", []string{"8001"})
+	addResponse.Attribute("mail", []string{uid + "@ldap.com"})
 	addResponse.Attribute("objectClass", []string{"shadowAccount", "posixAccount", "top", "inetOrgPerson"})
 	err := l.Add(addResponse)
 	if err != nil {
 		fmt.Println("创建用户失败: ", err)
-		return ""
+		return
 	}
 
 	//随机给用户生成密码，并将新密码输出
-	passwordModifyRequest2 := ldap.NewPasswordModifyRequest("uid=java1,dc=devopsman,dc=cn", "", "")
-	passwordModifyResponse2, err := l.PasswordModify(passwordModifyRequest2)
-	if err != nil {
+	passwordModifyRequest2 := ldap.NewPasswordModifyRequest(fmt.Sprintf("uid=%s,%s", uid, uc), "", password)
+	if passwordModifyResponse2, err := l.PasswordModify(passwordModifyRequest2); err != nil {
 		fmt.Println("修改密码失败：", err)
-		return ""
+		return
+	} else {
+		generatedPassword := passwordModifyResponse2.GeneratedPassword
+		fmt.Println("生成的密码: ", generatedPassword)
 	}
-	generatedPassword := passwordModifyResponse2.GeneratedPassword
-	fmt.Println("生成的密码: ", generatedPassword)
-	return generatedPassword
+	return
 }

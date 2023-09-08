@@ -1,4 +1,4 @@
-package buildin
+package builtin
 
 import (
 	"log"
@@ -21,10 +21,10 @@ func TestRangeInt(t *testing.T) {
 }
 
 func TestRangeChan(t *testing.T) {
-	c := time.After(time.Second * 1)
-	// all goroutines are asleep - deadlock!
-	for range c {
-		log.Println("timeout")
+	tm := time.After(time.Millisecond * 100)
+	for range tm {
+		t.Log("Timeout")
+		break
 	}
-	t.Error("此处不应执行")
+
 }

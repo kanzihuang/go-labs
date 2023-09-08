@@ -1,4 +1,4 @@
-package buildin
+package builtin
 
 import (
 	"github.com/stretchr/testify/assert"
@@ -26,7 +26,7 @@ func TestFuncEqual(t *testing.T) {
 	assert.NotEqual(t, nameOf(myFunc1), nameOf(nil))
 	assert.Equal(t, nameOf(myFunc1), nameOf(myFunc1))
 	assert.NotEqual(t, nameOf(myFunc1), nameOf(myFunc2))
-	assert.Equal(t, runFuncName(), "go-labs/builtin_labs.TestFuncEqual")
+	assert.Equal(t, runFuncName(), "go-labs/builtin.TestFuncEqual")
 }
 
 // 获取正在运行的函数名
