@@ -3,6 +3,7 @@ package myorm
 import (
 	"errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
@@ -12,6 +13,7 @@ type TestModel struct {
 }
 
 func TestSelector_Build(t *testing.T) {
+	db := NewDB()
 	testCases := []struct {
 		name      string
 		q         QueryBuilder
@@ -20,42 +22,27 @@ func TestSelector_Build(t *testing.T) {
 	}{
 		{
 			name:      "base",
-			q:         NewSelector[TestModel](),
-			wantQuery: &Query{SQL: "SELECT * FROM `TestModel`;"},
-		},
-		{
-			name:      "with FROM",
-			q:         NewSelector[TestModel]().From("test_model"),
-			wantQuery: &Query{SQL: "SELECT * FROM test_model;"},
-		},
-		{
-			name:      "empty FROM",
-			q:         NewSelector[TestModel]().From(""),
-			wantQuery: &Query{SQL: "SELECT * FROM `TestModel`;"},
-		},
-		{
-			name:      "with db",
-			q:         NewSelector[TestModel]().From("test_db.test_model"),
-			wantQuery: &Query{SQL: "SELECT * FROM test_db.test_model;"},
+			q:         NewSelector[TestModel](db),
+			wantQuery: &Query{SQL: "SELECT * FROM `test_model`;"},
 		},
 		{
 			name: "with where id",
-			q: NewSelector[TestModel]().Where(Predicate{
-				left:    C("id"),
+			q: NewSelector[TestModel](db).Where(Predicate{
+				left:    C("Id"),
 				operate: OperateEqual,
 				right:   Value{},
 			}, []any{1}),
 			wantQuery: &Query{
-				SQL:    "SELECT * FROM `TestModel` WHERE `id` = ?;",
+				SQL:    "SELECT * FROM `test_model` WHERE `id` = ?;",
 				Params: []any{1},
 			},
 		},
 		{
 			name: "with where id and name",
-			q: NewSelector[TestModel]().Where(
+			q: NewSelector[TestModel](db).Where(
 				Predicate{
 					left: Predicate{
-						C("id"),
+						C("Id"),
 						OperateEqual,
 						Value{},
 					},
@@ -64,13 +51,13 @@ func TestSelector_Build(t *testing.T) {
 						operate: OperateNot,
 						right: Predicate{
 							left: Predicate{
-								C("name"),
+								C("Name"),
 								OperateEqual,
 								Value{},
 							},
 							operate: OperateOr,
 							right: Predicate{
-								left:    C("name"),
+								left:    C("Name"),
 								operate: OperateEqual,
 								right:   Value{},
 							},
@@ -79,24 +66,24 @@ func TestSelector_Build(t *testing.T) {
 				},
 				[]any{1, "a", "b"}),
 			wantQuery: &Query{
-				SQL:    "SELECT * FROM `TestModel` WHERE `id` = ? AND NOT (`name` = ? OR `name` = ?);",
+				SQL:    "SELECT * FROM `test_model` WHERE `id` = ? AND NOT (`name` = ? OR `name` = ?);",
 				Params: []any{1, "a", "b"},
 			},
 		},
 		{
 			name: "with where not name",
-			q: NewSelector[TestModel]().Where(
+			q: NewSelector[TestModel](db).Where(
 				Predicate{
 					operate: OperateNot,
 					right: Predicate{
 						Predicate{
-							C("name"),
+							C("Name"),
 							OperateEqual,
 							Value{},
 						},
 						OperateOr,
 						Predicate{
-							C("name"),
+							C("Name"),
 							OperateEqual,
 							Value{},
 						},
@@ -104,24 +91,24 @@ func TestSelector_Build(t *testing.T) {
 				},
 				[]any{1, "a", "b"}),
 			wantQuery: &Query{
-				SQL:    "SELECT * FROM `TestModel` WHERE NOT (`name` = ? OR `name` = ?);",
+				SQL:    "SELECT * FROM `test_model` WHERE NOT (`name` = ? OR `name` = ?);",
 				Params: []any{1, "a", "b"},
 			},
 		},
 		{
 			name: "with where invalid column",
-			q: NewSelector[TestModel]().Where(Predicate{
+			q: NewSelector[TestModel](db).Where(Predicate{
 				left:    C("invalid"),
 				operate: OperateEqual,
 				right:   Value{},
 			}, []any{1}),
-			wantErr: errors.New("invalid column"),
+			wantErr: errors.New("invalid column: invalid"),
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			query, err := tc.q.Build()
-			assert.Equal(t, tc.wantErr, err)
+			require.Equal(t, tc.wantErr, err)
 			if err != nil {
 				return
 			}

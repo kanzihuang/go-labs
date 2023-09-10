@@ -1,6 +1,7 @@
 package myorm
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -16,21 +17,25 @@ const (
 )
 
 type Column struct {
-	columnName string
+	fieldName string
 }
 
-func C(columnName string) Column {
-	return Column{columnName: columnName}
+func C(fieldName string) Column {
+	return Column{fieldName: fieldName}
 }
 
-func (c Column) Build() (string, error) {
-	return "`" + c.columnName + "`", nil
+func (c Column) Build(model *model) (string, error) {
+	f, ok := model.fieldMap[c.fieldName]
+	if ok != true {
+		return "", errors.New("invalid column: " + c.fieldName)
+	}
+	return "`" + f.columnName + "`", nil
 }
 
 type Value struct {
 }
 
-func (v Value) Build() (string, error) {
+func (v Value) Build(*model) (string, error) {
 	return "?", nil
 }
 
@@ -40,11 +45,11 @@ type Predicate struct {
 	right   Expression
 }
 
-func (p Predicate) Build() (string, error) {
+func (p Predicate) Build(model *model) (string, error) {
 	sb := strings.Builder{}
 	switch p.operate {
 	case OperateEqual, OperateAnd, OperateOr:
-		if res, err := p.left.Build(); err == nil {
+		if res, err := p.left.Build(model); err == nil {
 			sb.WriteString(res)
 		} else {
 			return "", err
@@ -52,7 +57,7 @@ func (p Predicate) Build() (string, error) {
 		sb.WriteByte(' ')
 		sb.WriteString(string(p.operate))
 		sb.WriteByte(' ')
-		if res, err := p.right.Build(); err == nil {
+		if res, err := p.right.Build(model); err == nil {
 			sb.WriteString(res)
 		} else {
 			return "", err
@@ -61,7 +66,7 @@ func (p Predicate) Build() (string, error) {
 		sb.WriteByte(' ')
 		sb.WriteString(string(p.operate))
 		sb.WriteByte(' ')
-		if res, err := p.right.Build(); err == nil {
+		if res, err := p.right.Build(model); err == nil {
 			sb.WriteString(res)
 		} else {
 			return "", err
@@ -78,38 +83,66 @@ func (p Predicate) Build() (string, error) {
 }
 
 type Selector[T any] struct {
-	tableName string
-	where     string
-	args      []any
+	db       *DB
+	typePtrT reflect.Type
+	where    Expression
+	args     []any
 }
 
-func NewSelector[T any]() *Selector[T] {
-	return &Selector[T]{}
+func NewSelector[T any](db *DB) *Selector[T] {
+	return &Selector[T]{
+		db:       db,
+		typePtrT: reflect.TypeOf(new(T)),
+	}
 }
 
-func (s Selector[T]) From(tableName string) QueryBuilder {
-	s.tableName = tableName
-	return s
+func (s Selector[T]) buildEnd(sb *strings.Builder) {
+	sb.WriteString(";")
+}
+
+func (s Selector[T]) buildSelect(sb *strings.Builder) {
+	sb.WriteString("SELECT * FROM ")
+}
+
+func (s Selector[T]) buildFrom(sb *strings.Builder) error {
+	m, err := s.db.registry.get(s.typePtrT)
+	if err != nil {
+		return err
+	}
+	sb.WriteString(m.tableName)
+	return nil
+}
+
+func (s Selector[T]) buildWhere(sb *strings.Builder) error {
+	if s.where == nil {
+		return nil
+	}
+	m, err := s.db.registry.get(s.typePtrT)
+	where, err := s.where.Build(m)
+	if err != nil {
+		return err
+	}
+	length := len(where)
+	if length > 0 {
+		if where[0] == '(' && where[length-1] == ')' {
+			where = where[1 : length-1]
+		}
+		where = " WHERE " + strings.TrimSpace(where)
+		sb.WriteString(where)
+	}
+	return nil
 }
 
 func (s Selector[T]) Build() (*Query, error) {
 	sb := strings.Builder{}
-
-	sb.WriteString("SELECT * FROM ")
-
-	if len(s.tableName) > 0 {
-		sb.WriteString(s.tableName)
-	} else {
-		sb.WriteByte('`')
-		sb.WriteString(reflect.TypeOf(*new(T)).Name())
-		sb.WriteByte('`')
+	s.buildSelect(&sb)
+	if err := s.buildFrom(&sb); err != nil {
+		return nil, err
 	}
-
-	if len(s.where) > 0 {
-		sb.WriteString(s.where)
+	if err := s.buildWhere(&sb); err != nil {
+		return nil, err
 	}
-
-	sb.WriteString(";")
+	s.buildEnd(&sb)
 	return &Query{
 		SQL:    sb.String(),
 		Params: s.args,
@@ -117,17 +150,7 @@ func (s Selector[T]) Build() (*Query, error) {
 }
 
 func (s Selector[T]) Where(expr Expression, args []any) QueryBuilder {
-	where, _ := expr.Build()
-	length := len(where)
-	if length > 0 {
-		if where[0] == '(' && where[length-1] == ')' {
-			where = where[1 : length-1]
-		}
-		s.where = " WHERE " + strings.TrimSpace(where)
-		s.args = args
-	} else {
-		s.where = ""
-		s.args = nil
-	}
+	s.where = expr
+	s.args = args
 	return s
 }
