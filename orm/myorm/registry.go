@@ -53,6 +53,24 @@ func (r *registry) register(typ reflect.Type, opts ...modelOpt) (*model, error) 
 	return m, nil
 }
 
+func (r *registry) parseTagColumn(tag reflect.StructTag) (string, error) {
+	ormTag, ok := tag.Lookup("orm")
+	if !ok {
+		return "", nil
+	}
+	items := strings.Split(string(ormTag), ",")
+	for _, item := range items {
+		peer := strings.Split(item, "=")
+		if len(peer) != 2 {
+			continue
+		}
+		if peer[0] == "column" {
+			return peer[1], nil
+		}
+	}
+	return "", nil
+}
+
 func (r *registry) parseModel(typ reflect.Type) (*model, error) {
 	if typ.Kind() != reflect.Ptr || typ.Elem().Kind() != reflect.Struct {
 		return nil, errors.New("数据类型不是指向结构体的指针: " + typ.Name())
@@ -67,13 +85,20 @@ func (r *registry) parseModel(typ reflect.Type) (*model, error) {
 	}
 	m.fieldMap = make(map[string]field, typ.NumField())
 	for i := 0; i < typ.NumField(); i++ {
-		if typ.Field(i).IsExported() == false {
+		fld := typ.Field(i)
+		if fld.IsExported() == false {
 			continue
 		}
-		fieldName := typ.Field(i).Name
-		m.fieldMap[fieldName] = field{
-			columnName: underlineName(fieldName),
-			fieldName:  fieldName,
+		colName, err := r.parseTagColumn(fld.Tag)
+		if err != nil {
+			return nil, err
+		}
+		if len(colName) == 0 {
+			colName = underlineName(fld.Name)
+		}
+		m.fieldMap[fld.Name] = field{
+			columnName: colName,
+			fieldName:  fld.Name,
 		}
 	}
 	return m, nil

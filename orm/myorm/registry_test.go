@@ -158,6 +158,10 @@ func Test_field(t *testing.T) {
 		Id        uint64
 		FirstName string
 	}
+	type testModelWithTag struct {
+		Id        uint64 `orm:"column=id"`
+		FirstName string `orm:"column=first_name_c"`
+	}
 	testCases := []struct {
 		name        string
 		val         any
@@ -184,6 +188,12 @@ func Test_field(t *testing.T) {
 			val:     new(testModel),
 			opt:     modelWithColumnName("FullName", "full_name_c"),
 			wantErr: errors.New("字段名不存在: FullName"),
+		},
+		{
+			name:        "with column tag",
+			val:         new(testModelWithTag),
+			fieldName:   "FirstName",
+			wantColName: "first_name_c",
 		},
 	}
 	for _, tc := range testCases {
