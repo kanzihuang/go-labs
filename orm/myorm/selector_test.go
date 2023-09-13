@@ -1,22 +1,29 @@
 package myorm
 
 import (
+	"context"
 	"errors"
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
 
 type TestModel struct {
-	Id   int64
-	Name string
+	Id        int64
+	FirstName string
 }
 
 func TestSelector_Build(t *testing.T) {
-	db := NewDB()
+	mockDB, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer mockDB.Close()
+	db, err := OpenDB(mockDB)
+	require.NoError(t, err)
+
 	testCases := []struct {
 		name      string
-		q         QueryBuilder
+		q         *Selector[TestModel]
 		wantQuery *Query
 		wantErr   error
 	}{
@@ -51,13 +58,13 @@ func TestSelector_Build(t *testing.T) {
 						operate: OperateNot,
 						right: Predicate{
 							left: Predicate{
-								C("Name"),
+								C("FirstName"),
 								OperateEqual,
 								Value{},
 							},
 							operate: OperateOr,
 							right: Predicate{
-								left:    C("Name"),
+								left:    C("FirstName"),
 								operate: OperateEqual,
 								right:   Value{},
 							},
@@ -66,7 +73,7 @@ func TestSelector_Build(t *testing.T) {
 				},
 				[]any{1, "a", "b"}),
 			wantQuery: &Query{
-				SQL:    "SELECT * FROM `test_model` WHERE `id` = ? AND NOT (`name` = ? OR `name` = ?);",
+				SQL:    "SELECT * FROM `test_model` WHERE `id` = ? AND NOT (`first_name` = ? OR `first_name` = ?);",
 				Params: []any{1, "a", "b"},
 			},
 		},
@@ -77,13 +84,13 @@ func TestSelector_Build(t *testing.T) {
 					operate: OperateNot,
 					right: Predicate{
 						Predicate{
-							C("Name"),
+							C("FirstName"),
 							OperateEqual,
 							Value{},
 						},
 						OperateOr,
 						Predicate{
-							C("Name"),
+							C("FirstName"),
 							OperateEqual,
 							Value{},
 						},
@@ -91,7 +98,7 @@ func TestSelector_Build(t *testing.T) {
 				},
 				[]any{1, "a", "b"}),
 			wantQuery: &Query{
-				SQL:    "SELECT * FROM `test_model` WHERE NOT (`name` = ? OR `name` = ?);",
+				SQL:    "SELECT * FROM `test_model` WHERE NOT (`first_name` = ? OR `first_name` = ?);",
 				Params: []any{1, "a", "b"},
 			},
 		},
@@ -113,6 +120,61 @@ func TestSelector_Build(t *testing.T) {
 				return
 			}
 			assert.Equal(t, tc.wantQuery, query)
+		})
+	}
+}
+
+func TestSelector_Get(t *testing.T) {
+	mockDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer mockDB.Close()
+	db, err := OpenDB(mockDB)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name     string
+		selector *Selector[TestModel]
+		mockRows *sqlmock.Rows
+		mockErr  error
+		wantData *TestModel
+		wantErr  error
+	}{
+		{
+			name:     "select",
+			selector: NewSelector[TestModel](db),
+			mockRows: sqlmock.NewRows([]string{"id", "first_name"}).
+				AddRow(1, "Mike"),
+			wantData: &TestModel{
+				Id:        1,
+				FirstName: "Mike",
+			},
+		},
+		{
+			name: "select where invalid",
+			selector: NewSelector[TestModel](db).Where(Predicate{
+				left:    C("invalid"),
+				operate: OperateEqual,
+				right:   Value{},
+			}, []any{1}),
+			mockErr: errors.New("invalid column: invalid"),
+			wantErr: errors.New("invalid column: invalid"),
+		},
+	}
+	ctx := context.Background()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			eq := mock.ExpectQuery("SELECT .*")
+			if tc.mockErr != nil {
+				eq.WillReturnError(tc.mockErr)
+			} else {
+				eq.WillReturnRows(tc.mockRows)
+			}
+			data, err := tc.selector.Get(ctx)
+			require.Equal(t, tc.wantErr, err)
+			if err != nil {
+				return
+			}
+			assert.Equal(t, tc.wantData, data)
 		})
 	}
 }

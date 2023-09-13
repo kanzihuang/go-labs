@@ -1,6 +1,8 @@
 package myorm
 
 import (
+	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"reflect"
@@ -96,15 +98,15 @@ func NewSelector[T any](db *DB) *Selector[T] {
 	}
 }
 
-func (s Selector[T]) buildEnd(sb *strings.Builder) {
+func (s *Selector[T]) buildEnd(sb *strings.Builder) {
 	sb.WriteString(";")
 }
 
-func (s Selector[T]) buildSelect(sb *strings.Builder) {
+func (s *Selector[T]) buildSelect(sb *strings.Builder) {
 	sb.WriteString("SELECT * FROM ")
 }
 
-func (s Selector[T]) buildFrom(sb *strings.Builder) error {
+func (s *Selector[T]) buildFrom(sb *strings.Builder) error {
 	m, err := s.db.registry.get(s.typePtrT)
 	if err != nil {
 		return err
@@ -113,7 +115,7 @@ func (s Selector[T]) buildFrom(sb *strings.Builder) error {
 	return nil
 }
 
-func (s Selector[T]) buildWhere(sb *strings.Builder) error {
+func (s *Selector[T]) buildWhere(sb *strings.Builder) error {
 	if s.where == nil {
 		return nil
 	}
@@ -133,7 +135,7 @@ func (s Selector[T]) buildWhere(sb *strings.Builder) error {
 	return nil
 }
 
-func (s Selector[T]) Build() (*Query, error) {
+func (s *Selector[T]) Build() (*Query, error) {
 	sb := strings.Builder{}
 	s.buildSelect(&sb)
 	if err := s.buildFrom(&sb); err != nil {
@@ -149,8 +151,55 @@ func (s Selector[T]) Build() (*Query, error) {
 	}, nil
 }
 
-func (s Selector[T]) Where(expr Expression, args []any) QueryBuilder {
+func (s *Selector[T]) Where(expr Expression, args []any) *Selector[T] {
 	s.where = expr
 	s.args = args
 	return s
+}
+
+func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
+	ts, err := s.GetMulti(ctx, 1)
+	if err != nil {
+		return nil, err
+	}
+	if len(ts) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return ts[0], nil
+}
+func (s *Selector[T]) GetMulti(ctx context.Context, limit uint16) ([]*T, error) {
+	query, err := s.Build()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.db.db.QueryContext(ctx, query.SQL, query.Params...)
+	if err != nil {
+		return nil, err
+	}
+	meta, err := s.db.registry.get(s.typePtrT)
+	if err != nil {
+		return nil, err
+	}
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+	if len(columns) > len(meta.fieldMap) {
+		return nil, errors.New("myorm: 列过多")
+	}
+
+	ts := make([]*T, 0, 1)
+	for i := uint16(0); i <= limit-1; i++ {
+		if rows.Next() != true {
+			break
+		}
+		tp := new(T)
+		val := s.db.valueCreator(tp, meta)
+		if err := val.SetColumns(rows); err != nil {
+			return nil, err
+		}
+		ts = append(ts, tp)
+	}
+
+	return ts, nil
 }

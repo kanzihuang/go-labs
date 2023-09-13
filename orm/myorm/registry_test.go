@@ -36,7 +36,7 @@ func Test_underlineName(t *testing.T) {
 func Test_parseModel(t *testing.T) {
 	type testModel struct {
 		Id          uint64
-		Name        string
+		FirstName   string
 		nonExported string
 	}
 	testCases := []struct {
@@ -50,14 +50,28 @@ func Test_parseModel(t *testing.T) {
 			val:  new(testModel),
 			wantModel: &model{
 				tableName: "`test_model`",
+				columnMap: map[string]field{
+					"id": {
+						columnName: "id",
+						fieldName:  "Id",
+						typ:        reflect.TypeOf(uint64(0)),
+					},
+					"first_name": {
+						columnName: "first_name",
+						fieldName:  "FirstName",
+						typ:        reflect.TypeOf(""),
+					},
+				},
 				fieldMap: map[string]field{
 					"Id": {
 						columnName: "id",
 						fieldName:  "Id",
+						typ:        reflect.TypeOf(uint64(0)),
 					},
-					"Name": {
-						columnName: "name",
-						fieldName:  "Name",
+					"FirstName": {
+						columnName: "first_name",
+						fieldName:  "FirstName",
+						typ:        reflect.TypeOf(""),
 					},
 				},
 			},

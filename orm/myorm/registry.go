@@ -9,18 +9,7 @@ import (
 	"sync"
 )
 
-type field struct {
-	columnName string
-	fieldName  string
-}
-
-type model struct {
-	tableName string
-	fieldMap  map[string]field
-}
-
 type modelOpt func(model *model) error
-
 type registry struct {
 	models sync.Map
 }
@@ -76,30 +65,35 @@ func (r *registry) parseModel(typ reflect.Type) (*model, error) {
 		return nil, errors.New("数据类型不是指向结构体的指针: " + typ.Name())
 	}
 	typ = typ.Elem()
-	m := &model{}
+	m := newModel()
 	if t, ok := reflect.Zero(typ).Interface().(TableName); ok {
 		m.tableName = t.TableName()
 	}
 	if len(m.tableName) == 0 {
 		m.tableName = fmt.Sprintf("`%s`", underlineName(typ.Name()))
 	}
+
 	m.fieldMap = make(map[string]field, typ.NumField())
+	m.columnMap = make(map[string]field, typ.NumField())
 	for i := 0; i < typ.NumField(); i++ {
-		fld := typ.Field(i)
-		if fld.IsExported() == false {
+		tf := typ.Field(i)
+		if tf.IsExported() == false {
 			continue
 		}
-		colName, err := r.parseTagColumn(fld.Tag)
+		colName, err := r.parseTagColumn(tf.Tag)
 		if err != nil {
 			return nil, err
 		}
 		if len(colName) == 0 {
-			colName = underlineName(fld.Name)
+			colName = underlineName(tf.Name)
 		}
-		m.fieldMap[fld.Name] = field{
+		mf := field{
 			columnName: colName,
-			fieldName:  fld.Name,
+			fieldName:  tf.Name,
+			typ:        tf.Type,
 		}
+		m.fieldMap[tf.Name] = mf
+		m.columnMap[colName] = mf
 	}
 	return m, nil
 }

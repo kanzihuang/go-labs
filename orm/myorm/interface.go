@@ -9,6 +9,12 @@ type Query struct {
 	Params []any
 }
 
+func NewQuery() *Query {
+	return &Query{
+		Params: make([]any, 0),
+	}
+}
+
 type Expression interface {
 	Build(mdl *model) (string, error)
 }
