@@ -60,5 +60,19 @@ func newUnsafeValue(val any, meta *model) value {
 }
 
 func (val *unsafeValue) SetColumns(rows *sql.Rows) error {
+	columns, err := rows.Columns()
+	if err != nil {
+		return err
+	}
+	lenCols := len(columns)
+	values := make([]any, lenCols)
+	for i, column := range columns {
+		fld := val.val.FieldByName(val.meta.columnMap[column].fieldName)
+		values[i] = fld.Addr().Interface()
+	}
+
+	if err := rows.Scan(values...); err != nil {
+		return err
+	}
 	return nil
 }

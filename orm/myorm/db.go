@@ -26,7 +26,7 @@ func OpenDB(db *sql.DB, opts ...DBOption) (*DB, error) {
 	myDB := &DB{
 		db:           db,
 		registry:     newRegistry(),
-		valueCreator: newReflectValue,
+		valueCreator: newUnsafeValue,
 	}
 	for _, opt := range opts {
 		if err := opt(myDB); err != nil {
