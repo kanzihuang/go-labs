@@ -1,6 +1,7 @@
 package builtin
 
 import (
+	"github.com/stretchr/testify/require"
 	"log"
 	"testing"
 	"time"
@@ -27,4 +28,10 @@ func TestRangeChan(t *testing.T) {
 		break
 	}
 
+}
+
+func TestCopy(t *testing.T) {
+	hello := []byte("hello world")
+	copy(hello, hello[3:3])
+	require.Equal(t, "hello world", string(hello))
 }
