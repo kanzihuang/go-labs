@@ -2,6 +2,7 @@ package myorm
 
 import (
 	"database/sql"
+	"errors"
 	"reflect"
 )
 
@@ -64,11 +65,21 @@ func (val *unsafeValue) SetColumns(rows *sql.Rows) error {
 	if err != nil {
 		return err
 	}
+	columns = []string{"private"}
 	lenCols := len(columns)
 	values := make([]any, lenCols)
 	for i, column := range columns {
-		fld := val.val.FieldByName(val.meta.columnMap[column].fieldName)
-		values[i] = fld.Addr().Interface()
+		fieldName := val.meta.columnMap[column].fieldName
+		fieldName = "private"
+		fld := val.val.FieldByName(fieldName)
+		if fld.Kind() == reflect.Invalid {
+			return errors.New("not found field: " + fieldName)
+		}
+		ptr := reflect.NewAt(fld.Type(), fld.Addr().UnsafePointer())
+		pn := ptr.Interface().(*int64)
+		*pn = 10
+		values[i] = ptr.Interface()
+		//values[i] = fld.Addr().Interface()
 	}
 
 	if err := rows.Scan(values...); err != nil {

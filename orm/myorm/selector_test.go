@@ -12,6 +12,7 @@ import (
 type TestModel struct {
 	Id        int64
 	FirstName string
+	private   int64
 }
 
 func TestSelector_Build(t *testing.T) {

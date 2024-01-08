@@ -3,6 +3,8 @@ package builtin
 import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"strconv"
 	"testing"
 	"unicode/utf8"
 )
@@ -56,4 +58,10 @@ func TestStringNonPrintable(t *testing.T) {
 	if got != want {
 		t.Errorf("got: %q, want: %q", got, want)
 	}
+}
+
+func TestStringFromInt(t *testing.T) {
+	want := "123"
+	got := strconv.Itoa(123)
+	require.Equal(t, want, got)
 }
