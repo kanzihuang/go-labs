@@ -3,11 +3,13 @@ module go-labs
 go 1.20
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/gin-gonic/gin v1.9.0
 	github.com/go-ldap/ldap/v3 v3.4.5
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/stretchr/testify v1.8.1
 	go.etcd.io/etcd/client/v3 v3.5.9
+	golang.org/x/sync v0.1.0
 	gorm.io/driver/mysql v1.5.0
 	gorm.io/driver/sqlite v1.5.3
 	gorm.io/gorm v1.25.2-0.20230530020048-26663ab9bf55
@@ -15,7 +17,6 @@ require (
 
 require (
 	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 // indirect
-	github.com/DATA-DOG/go-sqlmock v1.5.0 // indirect
 	github.com/bytedance/sonic v1.8.0 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
