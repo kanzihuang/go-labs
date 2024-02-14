@@ -1,6 +1,7 @@
 package builtin
 
 import (
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
@@ -33,4 +34,32 @@ func TestPoint(t *testing.T) {
 	root.left = NewNode(2)
 	root.right = NewNode(10)
 	setNext(&root.right, nil)
+}
+
+type StructTest struct {
+	num   int
+	names []string
+}
+
+func copyStruct(s StructTest) StructTest {
+	return s
+}
+
+func TestCopyStruct(t *testing.T) {
+	a := StructTest{
+		num:   1,
+		names: []string{"Apple"},
+	}
+	b := copyStruct(a)
+	assert.Equal(t, 1, b.num)
+	assert.Equal(t, 1, len(b.names))
+
+	a.num = -1
+	assert.Equal(t, 1, b.num)
+
+	a.names[0] = "Tomato"
+	assert.Equal(t, "Tomato", b.names[0])
+
+	a.names = []string{"potato"}
+	assert.Equal(t, "Tomato", b.names[0])
 }

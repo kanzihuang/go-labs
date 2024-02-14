@@ -1,6 +1,7 @@
 package builtin
 
 import (
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"log"
 	"testing"
@@ -34,4 +35,19 @@ func TestCopy(t *testing.T) {
 	hello := []byte("hello world")
 	copy(hello, hello[3:3])
 	require.Equal(t, "hello world", string(hello))
+}
+
+func copySlice(a []int) []int {
+	return a
+}
+
+func TestCopySlice(t *testing.T) {
+	a := []int{1}
+	b := copySlice(a)
+	assert.Equal(t, 1, a[0])
+	assert.Equal(t, 1, b[0])
+
+	a[0] = -1
+	assert.Equal(t, -1, a[0])
+	assert.Equal(t, -1, b[0])
 }
