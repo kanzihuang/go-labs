@@ -7,6 +7,8 @@ func NewHealth() *Health {
 	return &Health{}
 }
 
-func (h *Health) Ping(payload []byte) ([]byte, error) {
-	return payload, nil
+func (h *Health) Ping(request *PingReq) (*PingResp, error) {
+	return &PingResp{
+		Payload: request.Payload,
+	}, nil
 }

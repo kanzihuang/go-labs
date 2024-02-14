@@ -29,7 +29,7 @@ func (c *Client) Call(req *Request) *Response {
 	err := encoder.Encode(req)
 	if err != nil {
 		return &Response{
-			Resp: nil,
+			Data: nil,
 			Err:  NewError(err),
 		}
 	}
@@ -38,7 +38,7 @@ func (c *Client) Call(req *Request) *Response {
 	err = decoder.Decode(resp)
 	if err != nil {
 		return &Response{
-			Resp: nil,
+			Data: nil,
 			Err:  NewError(err),
 		}
 	}

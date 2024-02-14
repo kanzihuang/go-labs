@@ -1,5 +1,7 @@
 package simplerpc
 
+import "encoding/json"
+
 type HealthClient struct {
 	proxy Proxy
 }
@@ -10,18 +12,27 @@ func NewHealthClient(proxy Proxy) *HealthClient {
 	}
 }
 
-func (h *HealthClient) Ping(payload []byte) ([]byte, error) {
+func (h *HealthClient) Ping(request *PingReq) (*PingResp, error) {
+	data, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
 	req := &Request{
 		ServiceName: "Health",
 		MethodName:  "Ping",
-		Arg:         payload,
+		Data:        data,
 	}
 	resp := h.proxy.Call(req)
 	if resp.Err != nil {
 		return nil, resp.Err.err
 	}
-	if len(resp.Resp) != len(payload) {
+	pingResp := &PingResp{}
+	err = json.Unmarshal(resp.Data, pingResp)
+	if err != nil {
+		return nil, err
+	}
+	if len(pingResp.Payload) != len(request.Payload) {
 		return nil, ErrInvalidPayloadLength
 	}
-	return resp.Resp, nil
+	return pingResp, nil
 }

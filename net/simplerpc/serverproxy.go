@@ -1,5 +1,7 @@
 package simplerpc
 
+import "encoding/json"
+
 type ServerProxy struct {
 	services map[string]Service
 }
@@ -23,19 +25,34 @@ func (s *ServerProxy) Call(req *Request) *Response {
 	svc, ok := s.services[req.ServiceName]
 	if !ok {
 		return &Response{
-			Resp: nil,
+			Data: nil,
 			Err:  NewError(ErrInvalidServiceName),
 		}
 	}
-	respPayload, err := svc.Ping(req.Arg)
+	pingReq := &PingReq{}
+	err := json.Unmarshal(req.Data, pingReq)
 	if err != nil {
 		return &Response{
-			Resp: nil,
+			Data: nil,
+			Err:  NewError(err),
+		}
+	}
+	pingResp, err := svc.Ping(pingReq)
+	if err != nil {
+		return &Response{
+			Data: nil,
+			Err:  NewError(err),
+		}
+	}
+	data, err := json.Marshal(pingResp)
+	if err != nil {
+		return &Response{
+			Data: nil,
 			Err:  NewError(err),
 		}
 	}
 	return &Response{
-		Resp: respPayload,
+		Data: data,
 		Err:  nil,
 	}
 }

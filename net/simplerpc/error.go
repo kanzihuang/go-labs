@@ -13,17 +13,17 @@ var (
 	ErrMultipleServiceName  = errors.New("simplerpc: 重复的服务名称")
 )
 
-func NewError(err error) *ResponseError {
-	return &ResponseError{
+func NewError(err error) *RespError {
+	return &RespError{
 		err: err,
 	}
 }
 
-type ResponseError struct {
+type RespError struct {
 	err error
 }
 
-func (e *ResponseError) UnmarshalJSON(bytes []byte) error {
+func (e *RespError) UnmarshalJSON(bytes []byte) error {
 	var str string
 	err := json.Unmarshal(bytes, &str)
 	if err != nil {
@@ -36,7 +36,7 @@ func (e *ResponseError) UnmarshalJSON(bytes []byte) error {
 	return nil
 }
 
-func (e *ResponseError) MarshalJSON() ([]byte, error) {
+func (e *RespError) MarshalJSON() ([]byte, error) {
 	err := ""
 	if e.err != nil {
 		err = e.err.Error()
@@ -44,7 +44,7 @@ func (e *ResponseError) MarshalJSON() ([]byte, error) {
 	return json.Marshal(err)
 }
 
-func (e *ResponseError) Error() string {
+func (e *RespError) Error() string {
 	if e != nil && e.err != nil {
 		return e.err.Error()
 	}

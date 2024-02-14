@@ -3,11 +3,11 @@ package simplerpc
 type Request struct {
 	ServiceName string
 	MethodName  string
-	Arg         []byte
+	Data        []byte
 }
 type Response struct {
-	Resp []byte
-	Err  *ResponseError
+	Data []byte
+	Err  *RespError
 }
 
 type Proxy interface {
