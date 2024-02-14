@@ -1,15 +1,16 @@
 package simplerpc
 
-type Request struct {
+type ProxyReq struct {
 	ServiceName string
 	MethodName  string
 	Data        []byte
 }
-type Response struct {
+type ProxyResp struct {
 	Data []byte
 	Err  *RespError
 }
 
 type Proxy interface {
-	Call(req *Request) *Response
+	Call(req *ProxyReq) *ProxyResp
+	Register(svc Service) error
 }

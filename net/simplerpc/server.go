@@ -46,8 +46,8 @@ func (m *Server) Start(network, address string) error {
 
 func (m *Server) handleConn(conn net.Conn) {
 	var err error
-	req := &Request{}
-	resp := &Response{}
+	req := &ProxyReq{}
+	resp := &ProxyResp{}
 	encoder := json.NewEncoder(conn)
 	decoder := json.NewDecoder(conn)
 	for {

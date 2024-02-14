@@ -6,11 +6,15 @@ import (
 )
 
 var (
-	ErrInvalidPayloadType   = errors.New("simplerpc: 无效的载荷类型")
-	ErrInvalidPayloadLength = errors.New("simplerpc: 无效的载荷长度")
-	ErrInvalidServiceName   = errors.New("simplerpc: 无效的服务名称")
-	ErrInvalidMethodName    = errors.New("simplerpc: 无效的方法名称")
-	ErrMultipleServiceName  = errors.New("simplerpc: 重复的服务名称")
+	ErrInvalidPayloadType       = errors.New("simplerpc: 无效的载荷类型")
+	ErrInvalidPayloadLength     = errors.New("simplerpc: 无效的载荷长度")
+	ErrInvalidServiceName       = errors.New("simplerpc: 无效的服务名称")
+	ErrInvalidMethodName        = errors.New("simplerpc: 无效的方法名称")
+	ErrMultipleServiceName      = errors.New("simplerpc: 重复的服务名称")
+	ErrInvalidMethodResultsNum  = errors.New("simplerpc: 方法的返回值数量无效")
+	ErrInvalidMethodResultsType = errors.New("simplerpc: 方法的返回值类型无效")
+	ErrInvalidMethodArgsNum     = errors.New("simplerpc: 方法参数数量无效")
+	ErrInvalidMethodArgsType    = errors.New("simplerpc: 方法参数类型无效")
 )
 
 func NewError(err error) *RespError {

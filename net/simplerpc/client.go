@@ -24,20 +24,20 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-func (c *Client) Call(req *Request) *Response {
+func (c *Client) Call(req *ProxyReq) *ProxyResp {
 	encoder := json.NewEncoder(c.conn)
 	err := encoder.Encode(req)
 	if err != nil {
-		return &Response{
+		return &ProxyResp{
 			Data: nil,
 			Err:  NewError(err),
 		}
 	}
 	decoder := json.NewDecoder(c.conn)
-	resp := &Response{}
+	resp := &ProxyResp{}
 	err = decoder.Decode(resp)
 	if err != nil {
-		return &Response{
+		return &ProxyResp{
 			Data: nil,
 			Err:  NewError(err),
 		}

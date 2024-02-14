@@ -3,6 +3,12 @@ package simplerpc
 type Health struct {
 }
 
+const ServiceHealth = "Health"
+
+func (h *Health) ServiceName() string {
+	return ServiceHealth
+}
+
 func NewHealth() *Health {
 	return &Health{}
 }

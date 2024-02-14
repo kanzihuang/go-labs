@@ -12,9 +12,10 @@ import (
 
 func TestServerProxy(t *testing.T) {
 	proxy := NewServerProxy()
-	err := proxy.Register("Health", NewHealth())
+	health := NewHealth()
+	err := proxy.Register(health)
 	require.NoError(t, err)
-	health := NewHealthClient(proxy)
+
 	const length = 16
 	payload := make([]byte, 0, length)
 	for i := byte(0); i < length; i++ {
@@ -32,7 +33,7 @@ func testStartServer(t *testing.T, network, address string) {
 	var err error
 	_ = os.Remove(address)
 	proxy := NewServerProxy()
-	err = proxy.Register("Health", NewHealth())
+	err = proxy.Register(NewHealth())
 	require.NoError(t, err)
 	server := NewServer(proxy)
 	go func() {
@@ -56,9 +57,11 @@ func TestClientProxy(t *testing.T) {
 	defer func() {
 		_ = client.Close()
 	}()
-	health := NewHealthClient(&ClientProxy{
-		client: client,
-	})
+	proxy := NewClientProxy(client)
+	health := &HealthClient{}
+	err = proxy.Register(health)
+	require.NoError(t, err)
+
 	const length = 16
 	payload := make([]byte, 0, length)
 	for i := byte(0); i < length; i++ {

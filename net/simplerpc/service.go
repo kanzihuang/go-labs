@@ -1,5 +1,10 @@
 package simplerpc
 
+const (
+	MethodArgsNum    = 1
+	MethodResultsNum = 2
+)
+
 type PingReq struct {
 	Payload []byte
 }
@@ -9,5 +14,5 @@ type PingResp struct {
 }
 
 type Service interface {
-	Ping(request *PingReq) (*PingResp, error)
+	ServiceName() string
 }
