@@ -1,6 +1,6 @@
 module go-labs
 
-go 1.20
+go 1.21
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
@@ -11,7 +11,9 @@ require (
 	github.com/silenceper/pool v1.0.0
 	github.com/stretchr/testify v1.8.1
 	go.etcd.io/etcd/client/v3 v3.5.9
-	golang.org/x/sync v0.1.0
+	golang.org/x/sync v0.6.0
+	google.golang.org/grpc v1.61.1
+	google.golang.org/protobuf v1.32.0
 	gorm.io/driver/mysql v1.5.0
 	gorm.io/driver/sqlite v1.5.3
 	gorm.io/gorm v1.25.2-0.20230530020048-26663ab9bf55
@@ -31,7 +33,7 @@ require (
 	github.com/go-playground/validator/v10 v10.11.2 // indirect
 	github.com/goccy/go-json v0.10.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -53,12 +55,12 @@ require (
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.17.0 // indirect
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
-	golang.org/x/crypto v0.7.0 // indirect
-	golang.org/x/net v0.8.0 // indirect
-	golang.org/x/sys v0.6.0 // indirect
-	golang.org/x/text v0.8.0 // indirect
-	google.golang.org/genproto v0.0.0-20210602131652-f16073e35f0c // indirect
-	google.golang.org/grpc v1.41.0 // indirect
-	google.golang.org/protobuf v1.28.1 // indirect
+	golang.org/x/crypto v0.15.0 // indirect
+	golang.org/x/net v0.18.0 // indirect
+	golang.org/x/sys v0.14.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
+	google.golang.org/genproto v0.0.0-20231106174013-bbf56f31fb17 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20231106174013-bbf56f31fb17 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20231106174013-bbf56f31fb17 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

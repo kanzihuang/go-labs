@@ -1,0 +1,17 @@
+syntax="proto3";
+
+package health;
+
+option go_package="/gen";
+
+service HealthService {
+  rpc Ping (PingReq) returns (PingResp) {}
+}
+
+message PingReq {
+  string Payload = 1;
+}
+
+message PingResp {
+  string Payload = 1;
+}
