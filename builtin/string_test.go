@@ -44,7 +44,7 @@ func TestStringRune(t *testing.T) {
 	s := ":中国:"
 	b := []byte(s)
 	want := []bool{true, true, false, false, true, false, false, true}
-	for i, _ := range b {
+	for i := range b {
 		assert.Equal(t, want[i], utf8.Valid(b[i:]))
 	}
 }
@@ -64,4 +64,10 @@ func TestStringFromInt(t *testing.T) {
 	want := "123"
 	got := strconv.Itoa(123)
 	require.Equal(t, want, got)
+}
+
+func TestStringFormat(t *testing.T) {
+	var num string
+	num = fmt.Sprintf("%06d", 123)
+	require.Equal(t, "000123", num)
 }
